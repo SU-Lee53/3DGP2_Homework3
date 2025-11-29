@@ -1,5 +1,5 @@
-# 3DGP2_Homework2
-3D Game Programming Homework 2 from TUKorea Game Engineering
+# 3DGP2_Homework3
+3D Game Programming Homework 3 from TUKorea Game Engineering
 
 2차 과제를 기반으로 다음 내용을 추가하여 구현한다.
 
