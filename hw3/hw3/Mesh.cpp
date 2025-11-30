@@ -495,12 +495,41 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 	int cxHeightMap = pHeightMap ? pHeightMap->GetRawImageWidth() : 0;
 	int czHeightMap = pHeightMap ? pHeightMap->GetRawImageLength() : 0;
 
+#ifdef TERRAIN_TESSELATION
+	int nControlPointPerEdge = 4;
+	m_nVertices = nControlPointPerEdge * nControlPointPerEdge;
+	m_d3dPrimitiveTopology = (D3D12_PRIMITIVE_TOPOLOGY)(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + m_nVertices - 1);	// 4x4 Quad ÆÐÄ¡
+
+#else
+	m_nVertices = nWidth * nLength;
+	m_d3dPrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+
+#endif
+
 	m_xmf3Positions.resize(m_nVertices);
 	m_xmf4Colors.resize(m_nVertices);
 	m_xmf2TextureCoords0.resize(m_nVertices);
 	m_xmf2TextureCoords1.resize(m_nVertices);
 
 	float fHeight = 0.0f, fMinHeight = +FLT_MAX, fMaxHeight = -FLT_MAX;
+
+#ifdef TERRAIN_TESSELATION
+	int nIncrementX = std::ceil((float)nWidth / nControlPointPerEdge);
+	int nIncrementZ = std::ceil((float)nLength / nControlPointPerEdge);
+
+	for (int i = 0, z = zStart; z < (zStart + nLength); z += nIncrementZ) {
+		for (int x = xStart; x < (xStart + nWidth); x += nIncrementX, i++) {
+			fHeight = GetHeight(x, z, pHeightMap);
+			m_xmf3Positions[i] = XMFLOAT3((x * m_xmf3Scale.x), fHeight, (z*m_xmf3Scale.z));
+			m_xmf4Colors[i] = Vector4::Add(GetColor(x, z, pHeightMap), xmf4Color);
+			m_xmf2TextureCoords0[i] = XMFLOAT2(float(x) / float(cxHeightMap - 1), float(czHeightMap - 1 - z) / float(czHeightMap - 1));
+			m_xmf2TextureCoords1[i] = XMFLOAT2(float(x) / float(m_xmf3Scale.x * 0.5f), float(z) / float(m_xmf3Scale.z * 0.5f));
+			if (fHeight < fMinHeight) fMinHeight = fHeight;
+			if (fHeight > fMaxHeight) fMaxHeight = fHeight;
+		}
+	}
+
+#else
 	for (int i = 0, z = zStart; z < (zStart + nLength); z++)
 	{
 		for (int x = xStart; x < (xStart + nWidth); x++, i++)
@@ -514,6 +543,7 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 			if (fHeight > fMaxHeight) fMaxHeight = fHeight;
 		}
 	}
+#endif
 
 	m_pd3dPositionBuffer = ::CreateBufferResource(pd3dDevice, pd3dCommandList, m_xmf3Positions.data(), sizeof(XMFLOAT3) * m_nVertices, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, m_pd3dPositionUploadBuffer.GetAddressOf());
 	m_d3dPositionBufferView.BufferLocation = m_pd3dPositionBuffer->GetGPUVirtualAddress();
@@ -535,6 +565,7 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 	m_d3dTextureCoord1BufferView.StrideInBytes = sizeof(XMFLOAT2);
 	m_d3dTextureCoord1BufferView.SizeInBytes = sizeof(XMFLOAT2) * m_nVertices;
 
+#ifndef TERRAIN_TESSELATION
 	m_nSubMeshes = 1;
 	m_nSubSetIndices.resize(m_nSubMeshes);
 	m_IndicesBySubset.resize(m_nSubMeshes);
@@ -573,6 +604,8 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 	m_d3dSubSetIndexBufferViews[0].BufferLocation = m_pd3dSubSetIndexBuffers[0]->GetGPUVirtualAddress();
 	m_d3dSubSetIndexBufferViews[0].Format = DXGI_FORMAT_R32_UINT;
 	m_d3dSubSetIndexBufferViews[0].SizeInBytes = sizeof(UINT) * m_nSubSetIndices[0];
+
+#endif
 }
 
 void TerrainMesh::ReleaseUploadBuffers()
@@ -607,6 +640,10 @@ void TerrainMesh::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, int 
 		m_d3dTextureCoord1BufferView,
 	};
 
+#ifdef TERRAIN_TESSELATION
+	pd3dCommandList->DrawInstanced(m_nVertices, 1, m_nOffset, 0);
+
+#else
 	pd3dCommandList->IASetVertexBuffers(m_nSlot, _countof(d3dVertexBufferViews), d3dVertexBufferViews);
 	if ((m_nSubMeshes > 0) && (nSubSet < m_nSubMeshes))
 	{
@@ -617,6 +654,7 @@ void TerrainMesh::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, int 
 	{
 		pd3dCommandList->DrawInstanced(m_nVertices, nInstanceCount, m_nOffset, 0);
 	}
+#endif
 }
 
 float TerrainMesh::GetHeight(int x, int z, std::shared_ptr<HeightMapRawImage> pHeightMap)

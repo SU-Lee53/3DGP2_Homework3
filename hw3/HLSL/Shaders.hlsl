@@ -163,6 +163,162 @@ float4 PSTerrain(VS_TERRAIN_OUTPUT input) : SV_TARGET0
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Terrain TESSELLATION Shader
+
+struct VS_TERRAIN_TESSELLATION_INPUT
+{
+    float3 position : POSITION;
+    float4 color : COLOR;
+    float2 uv0 : TEXCOORD0;
+    float2 uv1 : TEXCOORD1;
+};
+
+struct VS_TERRAIN_TESSELLATION_OUTPUT
+{
+    float3 positionW : POSITION;
+    float4 color : COLOR;
+    float2 uv0 : TEXCOORD0;
+    float2 uv1 : TEXCOORD1;
+};
+
+struct HS_TERRAIN_TESSELLATION_OUTPUT
+{
+    float3 positionW : POSITION;
+    float4 color : COLOR;
+    float2 uv0 : TEXCOORD0;
+    float2 uv1 : TEXCOORD1;
+};
+
+struct HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT
+{
+    float fTessEdges[4] : SV_TessFactor;
+    float fTessInsides[2] : SV_InsideTessFactor;
+};
+
+struct DS_TERRAIN_TESSELLATION_OUTPUT
+{
+    float4 position : SV_POSITION;
+    float4 color : COLOR;
+    float2 uv0 : TEXCOORD0;
+    float2 uv1 : TEXCOORD1;
+};
+
+VS_TERRAIN_TESSELLATION_OUTPUT VSTerrainTessellated(VS_TERRAIN_TESSELLATION_INPUT input)
+{
+    VS_TERRAIN_TESSELLATION_OUTPUT output;
+    
+    float3 positionW = input.position;
+    output.color = input.color;
+    output.uv0 = input.uv0;
+    output.uv1 = input.uv1;
+    
+    return output;
+}
+
+[domain("quad")]
+[partitioning("integer")]
+[outputtopology("triangle_cw")]
+[patchconstantfunc("HSTerrainTessellatedConstant")]
+[maxtessfactor(64.0f)]
+HS_TERRAIN_TESSELLATION_OUTPUT HSTerrainTessellated(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 16> input, uint i : SV_OutputControlPointID)
+{
+    HS_TERRAIN_TESSELLATION_OUTPUT output;
+    output.positionW = input[i].positionW;
+    output.color = input[i].positionW;
+    output.uv0 = input[i].uv0;
+    output.uv1 = input[i].uv1;
+
+    return output;
+}
+
+float CalculateTessFactor(float3 positionW)
+{
+    float fDistToCamera = distance(positionW, gvCameraPosition);
+    float s = saturate((fDistToCamera - 10.f) / 200.f - 10.f);
+    return pow(2, lerp(20.f, 4.f, s));
+}
+
+HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 16> input, uint nPatchID : SV_PrimitiveID)
+{
+    HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT output;
+    
+    float e1 = 0.5f * (input[0].positionW + input[3].positionW);
+    float e0 = 0.5f * (input[0].positionW + input[12].positionW);
+    float e2 = 0.5f * (input[3].positionW + input[15].positionW);
+    float e3 = 0.5f * (input[12].positionW + input[15].positionW);
+    
+    output.fTessEdges[0] = CalculateTessFactor(e0);
+    output.fTessEdges[1] = CalculateTessFactor(e1);
+    output.fTessEdges[2] = CalculateTessFactor(e2);
+    output.fTessEdges[3] = CalculateTessFactor(e3);
+    
+    float3 c = float3(0, 0, 0);
+    [unroll(16)]
+    for (int i = 0; i < 16; ++i)
+    {
+        c += input[i].positionW;
+    }
+    c = c / 16.f;
+    
+    output.fTessInsides = CalculateTessFactor(c);
+    output.fTessInsides = output.fTessInsides[0];
+    
+    return output;
+}
+
+float4 BernsteinCoefficient(float t)
+{
+    float tInv = 1.0f - t;
+    
+    // P(t) = 
+    // (1 - t)^3 * P0 + 
+    // 3(1 - t)^2 * t * P1 +
+    // 3(1 - t) * t^2 * p2 + 
+    // t^3 * p3
+    return float4(tInv * tInv * tInv, 3.f * t * tInv * tInv, 3.f * t * t * tInv, t * t * t);
+}
+
+float3 CubicBezierSum(OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 16> patch, float4 u, float4 v)
+{
+    float3 sum = float3(0, 0, 0);
+    sum = v.x * (u.x * patch[0].positionW + u.y * patch[1].positionW + u.z * patch[2].positionW + u.w * patch[3].positionW);
+    sum += v.x * (u.x * patch[4].positionW + u.y * patch[5].positionW + u.z * patch[6].positionW + u.w * patch[7].positionW);
+    sum += v.x * (u.x * patch[8].positionW + u.y * patch[9].positionW + u.z * patch[10].positionW + u.w * patch[11].positionW);
+    sum += v.x * (u.x * patch[12].positionW + u.y * patch[13].positionW + u.z * patch[14].positionW + u.w * patch[15].positionW);
+    
+    return sum;
+}
+
+DS_TERRAIN_TESSELLATION_OUTPUT DSTerrainTessellated(HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT patchConstant, float2 uv : SV_DomainLocation, OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 16>, patch)
+{
+    DS_TERRAIN_TESSELLATION_OUTPUT output;
+    
+    float4 uB = BernsteinCoefficient(uv.x);
+    float4 vB = BernsteinCoefficient(uv.y);
+    float3 position = CubicBezierSum(patch, uB, vB);
+    
+    matrix mtxWVP = mul(gmtxTerrainWorld, gmtxView);
+    mtxWVP = mul(mtxWVP, gmtxProjection);
+    output.position = mul(float4(position, 1.f), mtxWVP);
+    
+    output.color = lerp(lerp(patch[0].color, patch[3].color, uv.x), lerp(patch[12].color, patch[15].color, uv.x), uv.y);
+    output.uv0 = lerp(lerp(patch[0].uv0, patch[3].uv0, uv.x), lerp(patch[12].uv0, patch[15].uv0, uv.x), uv.y);
+    output.uv1 = lerp(lerp(patch[0].uv1, patch[3].uv1, uv.x), lerp(patch[12].uv1, patch[15].uv1, uv.x), uv.y);
+    
+    return output;
+}
+
+float4 PSTerrainTessellated(DS_TERRAIN_TESSELLATION_OUTPUT input)
+{
+    float4 cBaseColor = gtxtAlbedoMap.Sample(gssWrap, input.uv0);
+    float4 cDetailColor = gtxtDetailAlbedoMap.Sample(gssWrap, input.uv1 + gvTerrainUVOffset);
+    
+    float4 cFinalColor = lerp(cBaseColor, cDetailColor, 0.5);
+    
+    return cFinalColor;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // BillboardShader
 
 struct VS_BILLBOARD_OUTPUT

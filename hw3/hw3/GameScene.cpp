@@ -107,7 +107,8 @@ void GameScene::BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 	XMFLOAT3 xmf3Scale(18.0f, 4.0f, 18.0f);
 	XMFLOAT4 xmf4Color(0.0f, 0.5f, 0.0f, 0.0f);
 	m_pTerrain = std::make_shared<TerrainObject>();
-	m_pTerrain->Initialize(pd3dDevice, pd3dCommandList, "../Models/Textures/Terrain/HeightMap.raw", 257, 257, 257, 257, xmf3Scale, xmf4Color);
+	m_pTerrain->Initialize(pd3dDevice, pd3dCommandList, "../Models/Textures/Terrain/HeightMap.raw", 257, 257, 13, 13, xmf3Scale, xmf4Color);
+	//m_pTerrain->Initialize(pd3dDevice, pd3dCommandList, "../Models/Textures/Terrain/HeightMap.raw", 257, 257, 257, 257, xmf3Scale, xmf4Color);
 	m_pPlayer->SetPosition(XMFLOAT3(m_pTerrain->GetWidth() / 2, 2000.0f, m_pTerrain->GetLength() / 2));
 
 	m_pSkyboxTexture = TEXTURE->GetTexture("Skybox");

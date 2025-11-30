@@ -660,6 +660,7 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("TerrainVS");
 		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("TerrainPS");
 		d3dPipelineDesc.RasterizerState = CreateRasterizerState();
+		d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 		d3dPipelineDesc.BlendState.AlphaToCoverageEnable = false;
 		d3dPipelineDesc.BlendState.IndependentBlendEnable = false;
 		d3dPipelineDesc.BlendState.RenderTarget[0].BlendEnable = true;
