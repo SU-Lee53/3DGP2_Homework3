@@ -14,6 +14,8 @@ void ShaderManager::Initialize()
 {
 	ComPtr<ID3DBlob> m_pd3dVSBlob;
 	ComPtr<ID3DBlob> m_pd3dGSBlob;
+	ComPtr<ID3DBlob> m_pd3dHSBlob;
+	ComPtr<ID3DBlob> m_pd3dDSBlob;
 	ComPtr<ID3DBlob> m_pd3dPSBlob;
 
 	// Shaders.hlsl
@@ -84,11 +86,26 @@ void ShaderManager::Initialize()
 	m_pd3dBlobs.push_back(m_pd3dGSBlob);
 	m_pd3dBlobs.push_back(m_pd3dPSBlob);
 
+	// 과제3 추가
+
+	// Terrain Tessellation
+	m_pCompiledShaderByteCodeMap.insert({ "TerrainTessellatedVS", Shader::CompileShader(L"../HLSL/Shaders.hlsl", "VSTerrainTessellated", "vs_5_1", m_pd3dVSBlob.GetAddressOf()) });
+	m_pCompiledShaderByteCodeMap.insert({ "TerrainTessellatedHS", Shader::CompileShader(L"../HLSL/Shaders.hlsl", "HSTerrainTessellated", "hs_5_1", m_pd3dHSBlob.GetAddressOf()) });
+	m_pCompiledShaderByteCodeMap.insert({ "TerrainTessellatedDS", Shader::CompileShader(L"../HLSL/Shaders.hlsl", "DSTerrainTessellated", "ds_5_1", m_pd3dDSBlob.GetAddressOf()) });
+	m_pCompiledShaderByteCodeMap.insert({ "TerrainTessellatedPS", Shader::CompileShader(L"../HLSL/Shaders.hlsl", "PSTerrainTessellated", "ps_5_1", m_pd3dPSBlob.GetAddressOf()) });
+	m_pd3dBlobs.push_back(m_pd3dVSBlob);
+	m_pd3dBlobs.push_back(m_pd3dHSBlob);
+	m_pd3dBlobs.push_back(m_pd3dDSBlob);
+	m_pd3dBlobs.push_back(m_pd3dPSBlob);
+
+
+
 	Load<StandardShader>();
 	Load<TerrainShader>();
 	Load<OBBDebugShader>();
 	Load<MirrorShader>();
 	Load<SkyboxShader>();
+
 }
 
 D3D12_SHADER_BYTECODE ShaderManager::GetShaderByteCode(const std::string& strShaderName)

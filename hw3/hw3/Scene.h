@@ -59,6 +59,8 @@ public:
 
 	std::shared_ptr<Texture> GetSkyboxTexture() { return m_pSkyboxTexture; }
 
+	void SetTerrainWireframeMode(bool bMode);
+
 protected:
 	std::shared_ptr<Player>						m_pPlayer;
 	std::vector<std::shared_ptr<GameObject>>	m_pGameObjects;

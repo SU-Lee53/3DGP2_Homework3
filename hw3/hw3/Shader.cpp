@@ -652,9 +652,61 @@ D3D12_SHADER_BYTECODE MirrorShader::CreateBillboardOnTerrainPixelShader()
 
 void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSignature> pd3dRootSignature)
 {
-	m_pd3dPipelineStates.resize(2);
-
+	int nPipelineIndex = 0;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC d3dPipelineDesc{};
+
+#ifdef TERRAIN_TESSELATION
+	m_pd3dPipelineStates.resize(3);
+
+	// pipeline[0] : 지형 테셀레이션
+	{
+		d3dPipelineDesc.pRootSignature = pd3dRootSignature ? pd3dRootSignature.Get() : RenderManager::g_pd3dRootSignature.Get();
+		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("TerrainTessellatedVS");
+		d3dPipelineDesc.HS = SHADER->GetShaderByteCode("TerrainTessellatedHS");
+		d3dPipelineDesc.DS = SHADER->GetShaderByteCode("TerrainTessellatedDS");
+		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("TerrainTessellatedPS");
+		d3dPipelineDesc.RasterizerState = CreateRasterizerState();
+		//d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+		d3dPipelineDesc.BlendState.AlphaToCoverageEnable = false;
+		d3dPipelineDesc.BlendState.IndependentBlendEnable = false;
+		d3dPipelineDesc.BlendState.RenderTarget[0].BlendEnable = true;
+		d3dPipelineDesc.BlendState.RenderTarget[0].LogicOpEnable = false;
+		d3dPipelineDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_BLEND_FACTOR;
+		d3dPipelineDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_BLEND_FACTOR;
+		d3dPipelineDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+		d3dPipelineDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+		d3dPipelineDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+		d3dPipelineDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+		d3dPipelineDesc.BlendState.RenderTarget[0].LogicOp = D3D12_LOGIC_OP_NOOP;
+		d3dPipelineDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+		d3dPipelineDesc.DepthStencilState = CreateDepthStencilState();
+		d3dPipelineDesc.InputLayout = CreateInputLayout();
+		d3dPipelineDesc.SampleMask = UINT_MAX;
+		d3dPipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+		d3dPipelineDesc.NumRenderTargets = 1;
+		d3dPipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		d3dPipelineDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		d3dPipelineDesc.SampleDesc.Count = 1;
+		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	}
+
+	HRESULT hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[nPipelineIndex++].GetAddressOf()));
+	if (FAILED(hr)) {
+		__debugbreak();
+	}
+
+	// pipeline[1] : 지형 테셀레이션 with wireframe
+	{
+		d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	}
+
+	hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[nPipelineIndex++].GetAddressOf()));
+	if (FAILED(hr)) {
+		__debugbreak();
+	}
+
+#else
+	m_pd3dPipelineStates.resize(2);
 	{
 		d3dPipelineDesc.pRootSignature = pd3dRootSignature ? pd3dRootSignature.Get() : RenderManager::g_pd3dRootSignature.Get();
 		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("TerrainVS");
@@ -684,13 +736,17 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 	}
 
-	HRESULT hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[0].GetAddressOf()));
+	HRESULT hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[nPipelineIndex].GetAddressOf()));
 	if (FAILED(hr)) {
 		__debugbreak();
 	}
+	nPipelineIndex++
 
+#endif
 	{
 		d3dPipelineDesc.VS =SHADER->GetShaderByteCode("BillboardVS");
+		d3dPipelineDesc.HS = D3D12_SHADER_BYTECODE{ nullptr, 0 };
+		d3dPipelineDesc.DS = D3D12_SHADER_BYTECODE{ nullptr, 0 };
 		d3dPipelineDesc.GS =SHADER->GetShaderByteCode("BillboardGS");
 		d3dPipelineDesc.PS =SHADER->GetShaderByteCode("BillboardPS");
 		d3dPipelineDesc.RasterizerState = CreateRasterizerState();
@@ -708,7 +764,7 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 	}
 
-	hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[1].GetAddressOf()));
+	hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[nPipelineIndex].GetAddressOf()));
 	if (FAILED(hr)) {
 		__debugbreak();
 	}

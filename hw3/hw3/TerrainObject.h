@@ -96,6 +96,9 @@ public:
 
 	std::array<XMFLOAT4, 4>& GetWallPlanes() { return m_xmf4MapBoundaryPlanes; }
 
+	bool GetWireframeMode() { return m_bDrawWireframe; }
+	void SetWireframeMode(bool bMode);
+
 private:
 	std::shared_ptr<HeightMapRawImage>			m_pHeightMapImage = nullptr;
 	std::vector<std::shared_ptr<TerrainMesh>>	m_pTerrainMeshes = {};
@@ -110,6 +113,8 @@ private:
 
 	float m_fWaterHeight = 250.f;
 	float m_fBlendFactor = 1.f;
+
+	bool m_bDrawWireframe = false;
 
 	XMFLOAT2									m_xmf2UVTranslation = XMFLOAT2(0,0);
 	ConstantBuffer								m_TerrainCBuffer;

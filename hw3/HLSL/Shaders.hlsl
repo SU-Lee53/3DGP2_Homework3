@@ -207,7 +207,7 @@ VS_TERRAIN_TESSELLATION_OUTPUT VSTerrainTessellated(VS_TERRAIN_TESSELLATION_INPU
 {
     VS_TERRAIN_TESSELLATION_OUTPUT output;
     
-    float3 positionW = input.position;
+    output.positionW = input.position;
     output.color = input.color;
     output.uv0 = input.uv0;
     output.uv1 = input.uv1;
@@ -216,52 +216,49 @@ VS_TERRAIN_TESSELLATION_OUTPUT VSTerrainTessellated(VS_TERRAIN_TESSELLATION_INPU
 }
 
 [domain("quad")]
-[partitioning("integer")]
+[partitioning("fractional_even")]
 [outputtopology("triangle_cw")]
+[outputcontrolpoints(4)]
 [patchconstantfunc("HSTerrainTessellatedConstant")]
 [maxtessfactor(64.0f)]
-HS_TERRAIN_TESSELLATION_OUTPUT HSTerrainTessellated(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 16> input, uint i : SV_OutputControlPointID)
+HS_TERRAIN_TESSELLATION_OUTPUT HSTerrainTessellated(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 4> input, uint i : SV_OutputControlPointID)
 {
     HS_TERRAIN_TESSELLATION_OUTPUT output;
     output.positionW = input[i].positionW;
-    output.color = input[i].positionW;
+    output.color = input[i].color;
     output.uv0 = input[i].uv0;
     output.uv1 = input[i].uv1;
 
     return output;
 }
 
+#define MAX_LOD_DISTANCE 100.f
+
 float CalculateTessFactor(float3 positionW)
 {
     float fDistToCamera = distance(positionW, gvCameraPosition);
-    float s = saturate((fDistToCamera - 10.f) / 200.f - 10.f);
-    return pow(2, lerp(20.f, 4.f, s));
+    float s = saturate((fDistToCamera - 10.f) / MAX_LOD_DISTANCE - 10.f);
+    return pow(2, lerp(5.f, 1.f, s));
 }
 
-HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 16> input, uint nPatchID : SV_PrimitiveID)
+HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 4> input, uint nPatchID : SV_PrimitiveID)
 {
     HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT output;
     
-    float e1 = 0.5f * (input[0].positionW + input[3].positionW);
-    float e0 = 0.5f * (input[0].positionW + input[12].positionW);
-    float e2 = 0.5f * (input[3].positionW + input[15].positionW);
-    float e3 = 0.5f * (input[12].positionW + input[15].positionW);
+    float3 e1 = 0.5f * (input[0].positionW + input[2].positionW);
+    float3 e0 = 0.5f * (input[2].positionW + input[3].positionW);
+    float3 e2 = 0.5f * (input[1].positionW + input[3].positionW);
+    float3 e3 = 0.5f * (input[0].positionW + input[1].positionW);
     
     output.fTessEdges[0] = CalculateTessFactor(e0);
     output.fTessEdges[1] = CalculateTessFactor(e1);
     output.fTessEdges[2] = CalculateTessFactor(e2);
     output.fTessEdges[3] = CalculateTessFactor(e3);
     
-    float3 c = float3(0, 0, 0);
-    [unroll(16)]
-    for (int i = 0; i < 16; ++i)
-    {
-        c += input[i].positionW;
-    }
-    c = c / 16.f;
+    float3 c = 0.25f * (input[0].positionW + input[1].positionW + input[2].positionW + input[3].positionW);
     
-    output.fTessInsides = CalculateTessFactor(c);
-    output.fTessInsides = output.fTessInsides[0];
+    output.fTessInsides[0] = CalculateTessFactor(c);
+    output.fTessInsides[1] = output.fTessInsides[0];
     
     return output;
 }
@@ -278,7 +275,7 @@ float4 BernsteinCoefficient(float t)
     return float4(tInv * tInv * tInv, 3.f * t * tInv * tInv, 3.f * t * t * tInv, t * t * t);
 }
 
-float3 CubicBezierSum(OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 16> patch, float4 u, float4 v)
+float3 CubicBezierSum(OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 4> patch, float4 u, float4 v)
 {
     float3 sum = float3(0, 0, 0);
     sum = v.x * (u.x * patch[0].positionW + u.y * patch[1].positionW + u.z * patch[2].positionW + u.w * patch[3].positionW);
@@ -289,26 +286,32 @@ float3 CubicBezierSum(OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 16> patch, flo
     return sum;
 }
 
-DS_TERRAIN_TESSELLATION_OUTPUT DSTerrainTessellated(HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT patchConstant, float2 uv : SV_DomainLocation, OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 16>, patch)
+[domain("quad")]
+DS_TERRAIN_TESSELLATION_OUTPUT DSTerrainTessellated(HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT patchConstant, float2 uv : SV_DomainLocation, OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 4> patch)
 {
     DS_TERRAIN_TESSELLATION_OUTPUT output;
     
-    float4 uB = BernsteinCoefficient(uv.x);
-    float4 vB = BernsteinCoefficient(uv.y);
-    float3 position = CubicBezierSum(patch, uB, vB);
+    //float4 uB = BernsteinCoefficient(uv.x);
+    //float4 vB = BernsteinCoefficient(uv.y);
+    //float3 position = CubicBezierSum(patch, uB, vB);
+    //
+    //matrix mtxWVP = mul(gmtxTerrainWorld, gmtxView);
+    //mtxWVP = mul(mtxWVP, gmtxProjection);
+    //output.position = mul(float4(position, 1.f), mtxWVP);
+    
+    float3 positionW = lerp(lerp(patch[0].positionW, patch[1].positionW, uv.x), lerp(patch[2].positionW, patch[3].positionW, uv.x), uv.y);
+    output.color = lerp(lerp(patch[0].color, patch[1].color, uv.x), lerp(patch[2].color, patch[3].color, uv.x), uv.y);
+    output.uv0 = lerp(lerp(patch[0].uv0, patch[1].uv0, uv.x), lerp(patch[2].uv0, patch[3].uv0, uv.x), uv.y);
+    output.uv1 = lerp(lerp(patch[0].uv1, patch[1].uv1, uv.x), lerp(patch[2].uv1, patch[3].uv1, uv.x), uv.y);
     
     matrix mtxWVP = mul(gmtxTerrainWorld, gmtxView);
     mtxWVP = mul(mtxWVP, gmtxProjection);
-    output.position = mul(float4(position, 1.f), mtxWVP);
-    
-    output.color = lerp(lerp(patch[0].color, patch[3].color, uv.x), lerp(patch[12].color, patch[15].color, uv.x), uv.y);
-    output.uv0 = lerp(lerp(patch[0].uv0, patch[3].uv0, uv.x), lerp(patch[12].uv0, patch[15].uv0, uv.x), uv.y);
-    output.uv1 = lerp(lerp(patch[0].uv1, patch[3].uv1, uv.x), lerp(patch[12].uv1, patch[15].uv1, uv.x), uv.y);
+    output.position = mul(float4(positionW, 1.f), mtxWVP);
     
     return output;
 }
 
-float4 PSTerrainTessellated(DS_TERRAIN_TESSELLATION_OUTPUT input)
+float4 PSTerrainTessellated(DS_TERRAIN_TESSELLATION_OUTPUT input) : SV_TARGET0
 {
     float4 cBaseColor = gtxtAlbedoMap.Sample(gssWrap, input.uv0);
     float4 cDetailColor = gtxtDetailAlbedoMap.Sample(gssWrap, input.uv1 + gvTerrainUVOffset);

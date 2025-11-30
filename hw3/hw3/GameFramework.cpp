@@ -525,6 +525,15 @@ void GameFramework::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPAR
 		case VK_F3:
 			RenderManager::g_bRenderOBBForDebug = !RenderManager::g_bRenderOBBForDebug;
 			break;
+
+		case '1':
+			CUR_SCENE->SetTerrainWireframeMode(true);
+			break;
+
+		case '2':
+			CUR_SCENE->SetTerrainWireframeMode(false);
+			break;
+
 		default:
 			break;
 		}

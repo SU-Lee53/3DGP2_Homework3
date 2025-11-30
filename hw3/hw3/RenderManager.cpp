@@ -247,7 +247,7 @@ void RenderManager::RenderObjectsInMirrorWorld(ComPtr<ID3D12GraphicsCommandList>
 	}
 
 	// Terrain 도 반사해서 그림
-	m_pTerrain->RenderOnMirror(m_pd3dDevice, pd3dCommandList, refDescHandle, xmf4MirrorPlane, pd3dTerrainOnMirrorPipelineState, pd3dBillboardsOnMirrorPipelineState);
+	//m_pTerrain->RenderOnMirror(m_pd3dDevice, pd3dCommandList, refDescHandle, xmf4MirrorPlane, pd3dTerrainOnMirrorPipelineState, pd3dBillboardsOnMirrorPipelineState);
 }
 
 void RenderManager::RenderTerrain(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle)
@@ -395,9 +395,7 @@ void RenderManager::CreateGlobalRootSignature(ComPtr<ID3D12Device> pd3dDevice)
 
 	}
 
-	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-		| D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS
-		| D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS;
+	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	D3D12_STATIC_SAMPLER_DESC d3dSamplerDescs[2];
 	d3dSamplerDescs[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;

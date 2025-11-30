@@ -251,3 +251,10 @@ const std::vector<std::shared_ptr<GameObject>>& Scene::GetGameObjects() const
 {
 	return m_pGameObjects;
 }
+
+void Scene::SetTerrainWireframeMode(bool bMode)
+{
+	if (m_pTerrain) {
+		m_pTerrain->SetWireframeMode(bMode);
+	}
+}

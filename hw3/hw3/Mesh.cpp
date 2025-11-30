@@ -496,7 +496,7 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 	int czHeightMap = pHeightMap ? pHeightMap->GetRawImageLength() : 0;
 
 #ifdef TERRAIN_TESSELATION
-	int nControlPointPerEdge = 4;
+	int nControlPointPerEdge = 2;
 	m_nVertices = nControlPointPerEdge * nControlPointPerEdge;
 	m_d3dPrimitiveTopology = (D3D12_PRIMITIVE_TOPOLOGY)(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + m_nVertices - 1);	// 4x4 Quad ÆÐÄ¡
 
@@ -514,10 +514,10 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 	float fHeight = 0.0f, fMinHeight = +FLT_MAX, fMaxHeight = -FLT_MAX;
 
 #ifdef TERRAIN_TESSELATION
-	int nIncrementX = std::ceil((float)nWidth / nControlPointPerEdge);
-	int nIncrementZ = std::ceil((float)nLength / nControlPointPerEdge);
+	int nIncrementX = (nWidth / (nControlPointPerEdge - 1)) - 1;
+	int nIncrementZ = (nLength / (nControlPointPerEdge - 1)) - 1;
 
-	for (int i = 0, z = zStart; z < (zStart + nLength); z += nIncrementZ) {
+	for (int i = 0, z = (zStart + nLength - 1); z >= zStart; z -= nIncrementZ) {
 		for (int x = xStart; x < (xStart + nWidth); x += nIncrementX, i++) {
 			fHeight = GetHeight(x, z, pHeightMap);
 			m_xmf3Positions[i] = XMFLOAT3((x * m_xmf3Scale.x), fHeight, (z*m_xmf3Scale.z));
@@ -641,6 +641,7 @@ void TerrainMesh::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, int 
 	};
 
 #ifdef TERRAIN_TESSELATION
+	pd3dCommandList->IASetVertexBuffers(m_nSlot, _countof(d3dVertexBufferViews), d3dVertexBufferViews);
 	pd3dCommandList->DrawInstanced(m_nVertices, 1, m_nOffset, 0);
 
 #else

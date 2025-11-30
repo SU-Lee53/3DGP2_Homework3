@@ -274,9 +274,17 @@ void TerrainObject::Update(float fTimeElapsed)
 
 void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle)
 {
+#ifdef TERRAIN_TESSELATION
+	if (m_pMaterials[0]->GetShader()) {
+		m_pMaterials[0]->GetShader()->OnPrepareRender(pd3dCommandList, m_bDrawWireframe ? 1 : 0);
+	}
+
+#else
 	if (m_pMaterials[0]->GetShader()) {
 		m_pMaterials[0]->GetShader()->OnPrepareRender(pd3dCommandList, 0);
 	}
+
+#endif
 
 	UINT nBillboardsToDraw = 0;
 	if ((m_pMaterials.size() == 1) && (m_pMaterials[0]))
@@ -343,7 +351,13 @@ void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graphic
 
 	// Draw Billboard
 	if (m_pMaterials[0]->GetShader()) {
+#ifdef TERRAIN_TESSELATION
+		m_pMaterials[0]->GetShader()->OnPrepareRender(pd3dCommandList, 2);
+
+#else
 		m_pMaterials[0]->GetShader()->OnPrepareRender(pd3dCommandList, 1);
+
+#endif
 	}
 
 	if (nBillboardsToDraw != 0) {
@@ -354,6 +368,7 @@ void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graphic
 	for (auto& pChild : m_pChildren) {
 		static_pointer_cast<TerrainObject>(pChild)->Render(pd3dDevice, pd3dCommandList, refDescHandle);
 	}
+
 
 }
 
@@ -493,4 +508,12 @@ float TerrainObject::GetHeight(float x, float z, bool bReverseQuad)
 	}
 
 	return m_pHeightMapImage->GetHeight(x, z, bReverseQuad) * m_xmf3Scale.y; 
-} 
+}
+
+void TerrainObject::SetWireframeMode(bool bMode) 
+{ 
+	m_bDrawWireframe = bMode;
+	for (auto& pChild : m_pChildren) {
+		static_pointer_cast<TerrainObject>(pChild)->SetWireframeMode(bMode);
+	}
+}
