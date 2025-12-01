@@ -216,7 +216,7 @@ VS_TERRAIN_TESSELLATION_OUTPUT VSTerrainTessellated(VS_TERRAIN_TESSELLATION_INPU
 }
 
 [domain("quad")]
-[partitioning("fractional_even")]
+[partitioning("fractional_odd")]
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("HSTerrainTessellatedConstant")]
@@ -232,23 +232,23 @@ HS_TERRAIN_TESSELLATION_OUTPUT HSTerrainTessellated(InputPatch<VS_TERRAIN_TESSEL
     return output;
 }
 
-#define MAX_LOD_DISTANCE 100.f
+#define MAX_LOD_DISTANCE 800.f
 
 float CalculateTessFactor(float3 positionW)
 {
     float fDistToCamera = distance(positionW, gvCameraPosition);
-    float s = saturate((fDistToCamera - 10.f) / MAX_LOD_DISTANCE - 10.f);
-    return pow(2, lerp(5.f, 1.f, s));
+    float s = saturate((fDistToCamera - 10.f) / (MAX_LOD_DISTANCE - 10.f));
+    return pow(2, lerp(10.f, 2.f, s));
 }
 
 HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 4> input, uint nPatchID : SV_PrimitiveID)
 {
     HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT output;
     
-    float3 e1 = 0.5f * (input[0].positionW + input[2].positionW);
-    float3 e0 = 0.5f * (input[2].positionW + input[3].positionW);
+    float3 e0 = 0.5f * (input[0].positionW + input[2].positionW);
+    float3 e1 = 0.5f * (input[0].positionW + input[1].positionW);
     float3 e2 = 0.5f * (input[1].positionW + input[3].positionW);
-    float3 e3 = 0.5f * (input[0].positionW + input[1].positionW);
+    float3 e3 = 0.5f * (input[2].positionW + input[3].positionW);
     
     output.fTessEdges[0] = CalculateTessFactor(e0);
     output.fTessEdges[1] = CalculateTessFactor(e1);
@@ -259,6 +259,13 @@ HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<
     
     output.fTessInsides[0] = CalculateTessFactor(c);
     output.fTessInsides[1] = output.fTessInsides[0];
+
+    //output.fTessEdges[0] = 15;
+    //output.fTessEdges[1] = 15;
+    //output.fTessEdges[2] = 15;
+    //output.fTessEdges[3] = 15;
+    //output.fTessInsides[0] = 15;
+    //output.fTessInsides[1] = 15;
     
     return output;
 }

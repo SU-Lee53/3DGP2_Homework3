@@ -274,7 +274,7 @@ void TerrainObject::Update(float fTimeElapsed)
 
 void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle)
 {
-#ifdef TERRAIN_TESSELATION
+#ifdef TERRAIN_TESSELLATION
 	if (m_pMaterials[0]->GetShader()) {
 		m_pMaterials[0]->GetShader()->OnPrepareRender(pd3dCommandList, m_bDrawWireframe ? 1 : 0);
 	}
@@ -341,9 +341,11 @@ void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graphic
 		pd3dCommandList->OMSetBlendFactor(pfBlendFactor);
 	}
 
-	if (m_pTerrainMeshes.size() >= 1)
+	volatile size_t pMeshCount = m_pTerrainMeshes.size();
+
+	if (pMeshCount >= 1)
 	{
-		for (int i = 0; i < m_pTerrainMeshes.size(); i++)
+		for (int i = 0; i < pMeshCount; i++)
 		{
 			if (m_pTerrainMeshes[i]) m_pTerrainMeshes[i]->Render(pd3dCommandList, 0);
 		}
@@ -351,7 +353,7 @@ void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graphic
 
 	// Draw Billboard
 	if (m_pMaterials[0]->GetShader()) {
-#ifdef TERRAIN_TESSELATION
+#ifdef TERRAIN_TESSELLATION
 		m_pMaterials[0]->GetShader()->OnPrepareRender(pd3dCommandList, 2);
 
 #else

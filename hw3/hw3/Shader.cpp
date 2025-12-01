@@ -439,9 +439,16 @@ void MirrorShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSign
 
 	// 2-1. 거울에 반사된 Terrain을 그림
 	// Stencil 값이 1 인 곳에만 그림
+
+#ifdef TERRAIN_TESSELLATION
+
 	{
-		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("TerrainVS");
-		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("TerrainPS");
+		d3dPipelineDesc.pRootSignature = pd3dRootSignature ? pd3dRootSignature.Get() : RenderManager::g_pd3dRootSignature.Get();
+		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("TerrainTessellatedVS");
+		d3dPipelineDesc.HS = SHADER->GetShaderByteCode("TerrainTessellatedHS");
+		d3dPipelineDesc.DS = SHADER->GetShaderByteCode("TerrainTessellatedDS");
+		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("TerrainTessellatedPS");
+		d3dPipelineDesc.RasterizerState = CreateRasterizerState();
 		d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 		d3dPipelineDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 		d3dPipelineDesc.RasterizerState.FrontCounterClockwise = true;
@@ -459,6 +466,42 @@ void MirrorShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSign
 		d3dPipelineDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
 		d3dPipelineDesc.InputLayout = CreateTerrainInputLayout();
 		d3dPipelineDesc.SampleMask = UINT_MAX;
+		d3dPipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+		d3dPipelineDesc.NumRenderTargets = 1;
+		d3dPipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		d3dPipelineDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		d3dPipelineDesc.SampleDesc.Count = 1;
+		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	}
+
+	hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[3].GetAddressOf()));
+	if (FAILED(hr)) {
+		__debugbreak();
+	}
+
+#else
+	{
+		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("TerrainVS");
+		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("TerrainPS");
+		d3dPipelineDesc.RasterizerState = CreateRasterizerState();
+		d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+		d3dPipelineDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+		d3dPipelineDesc.RasterizerState.FrontCounterClockwise = true;
+		d3dPipelineDesc.RasterizerState.DepthClipEnable = true;
+		d3dPipelineDesc.BlendState = CreateBlendState();
+		d3dPipelineDesc.DepthStencilState.DepthEnable = true;
+		d3dPipelineDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+		d3dPipelineDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+		d3dPipelineDesc.DepthStencilState.StencilEnable = true;
+		d3dPipelineDesc.DepthStencilState.StencilReadMask = 0xFF;
+		d3dPipelineDesc.DepthStencilState.StencilWriteMask = 0xFF;
+		d3dPipelineDesc.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+		d3dPipelineDesc.DepthStencilState.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+		d3dPipelineDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+		d3dPipelineDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+		d3dPipelineDesc.DepthStencilState = CreateDepthStencilState();
+		d3dPipelineDesc.InputLayout = CreateTerrainInputLayout();
+		d3dPipelineDesc.SampleMask = UINT_MAX;
 		d3dPipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		d3dPipelineDesc.NumRenderTargets = 1;
 		d3dPipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -472,10 +515,13 @@ void MirrorShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSign
 		__debugbreak();
 	}
 
+#endif
 	// 2-2. 거울에 반사된 Billboard를 그림
 	// Stencil 값이 1 인 곳에만 그림
 	{
 		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("BillboardVS");
+		d3dPipelineDesc.HS = D3D12_SHADER_BYTECODE{ nullptr, 0 };
+		d3dPipelineDesc.DS = D3D12_SHADER_BYTECODE{ nullptr, 0 };
 		d3dPipelineDesc.GS = SHADER->GetShaderByteCode("BillboardGS");
 		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("BillboardPS");
 		d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
@@ -655,7 +701,7 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 	int nPipelineIndex = 0;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC d3dPipelineDesc{};
 
-#ifdef TERRAIN_TESSELATION
+#ifdef TERRAIN_TESSELLATION
 	m_pd3dPipelineStates.resize(3);
 
 	// pipeline[0] : 지형 테셀레이션
@@ -666,7 +712,6 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 		d3dPipelineDesc.DS = SHADER->GetShaderByteCode("TerrainTessellatedDS");
 		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("TerrainTessellatedPS");
 		d3dPipelineDesc.RasterizerState = CreateRasterizerState();
-		//d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 		d3dPipelineDesc.BlendState.AlphaToCoverageEnable = false;
 		d3dPipelineDesc.BlendState.IndependentBlendEnable = false;
 		d3dPipelineDesc.BlendState.RenderTarget[0].BlendEnable = true;

@@ -112,7 +112,7 @@ public:
 
 class HeightMapRawImage;
 
-#define TERRAIN_TESSELATION
+#define TERRAIN_TESSELLATION
 
 class TerrainMesh : public Mesh {
 

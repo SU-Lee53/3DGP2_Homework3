@@ -247,7 +247,7 @@ void RenderManager::RenderObjectsInMirrorWorld(ComPtr<ID3D12GraphicsCommandList>
 	}
 
 	// Terrain 도 반사해서 그림
-	//m_pTerrain->RenderOnMirror(m_pd3dDevice, pd3dCommandList, refDescHandle, xmf4MirrorPlane, pd3dTerrainOnMirrorPipelineState, pd3dBillboardsOnMirrorPipelineState);
+	m_pTerrain->RenderOnMirror(m_pd3dDevice, pd3dCommandList, refDescHandle, xmf4MirrorPlane, pd3dTerrainOnMirrorPipelineState, pd3dBillboardsOnMirrorPipelineState);
 }
 
 void RenderManager::RenderTerrain(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle)
