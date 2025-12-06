@@ -10,6 +10,36 @@
 
 class Scene;
 
+class FrameBuffer {
+public:
+	void CreateDescriptorHeaps(ComPtr<ID3D12Device> pd3dDevice, UINT nSwapChainBuffers);
+	void CreateViews(ComPtr<ID3D12Device> pd3dDevice, ComPtr<IDXGISwapChain> pdxgiSwapChain, UINT nSwapChainBuffers);
+	void ResetBackBuffers(UINT nSwapChainBuffers) {
+		for (int i = 0; i < nSwapChainBuffers; i++)
+			if (m_pSwapChainBackBuffers[i])
+				m_pSwapChainBackBuffers[i].Reset();
+	}
+
+	ComPtr<ID3D12Resource> GetBackBuffer(UINT nBufferIndex) {
+		return m_pSwapChainBackBuffers[nBufferIndex];
+	}
+
+	D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferCPUHandle(UINT nBackBufferIndex) {
+		D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVCPUHandle = m_pd3dRTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		d3dRTVCPUHandle.ptr += nBackBufferIndex * m_nRtvDescriptorIncrementSize;
+		return d3dRTVCPUHandle;
+	}
+
+private:
+	ComPtr<ID3D12Resource>				m_pSwapChainBackBuffers[2];
+	ComPtr<ID3D12DescriptorHeap>		m_pd3dRTVDescriptorHeap = NULL;
+	ComPtr<ID3D12DescriptorHeap>		m_pd3dSRVUAVDescriptorHeap = NULL;
+
+public:
+	UINT m_nRtvDescriptorIncrementSize;
+
+};
+
 class GameFramework {
 public:
 	GameFramework(HINSTANCE hInstance, HWND hWnd, UINT uiWidth, UINT uiHeight, bool bEnableDebugLayer);
@@ -100,12 +130,13 @@ private:
 	ComPtr<ID3D12Device>				m_pd3dDevice;
 
 	// RTV + DSV
-	//FrameResource m_FrameResources[g_nSwapChainBuffers];
-	static const UINT			m_nSwapChainBuffers = 2;
+	static const UINT					m_nSwapChainBuffers = 2;
 
-	ComPtr<ID3D12Resource>				m_ppd3dSwapChainBackBuffers[m_nSwapChainBuffers];
-	ComPtr<ID3D12DescriptorHeap>		m_pd3dRtvDescriptorHeap = NULL;
-	UINT								m_nRtvDescriptorIncrementSize;
+	//ComPtr<ID3D12Resource>			m_ppd3dSwapChainBackBuffers[m_nSwapChainBuffers];
+	//ComPtr<ID3D12DescriptorHeap>		m_pd3dRtvDescriptorHeap = NULL;
+	//UINT								m_nRtvDescriptorIncrementSize;
+
+	FrameBuffer						m_FrameBuffers;
 
 	ComPtr<ID3D12Resource>				m_pd3dDepthStencilBuffer = NULL;
 	ComPtr<ID3D12DescriptorHeap>		m_pd3dDsvDescriptorHeap = NULL;
@@ -127,6 +158,7 @@ private:
 	bool m_bEnableDebugLayer = false;
 #pragma endregion
 };
+
 
 #define RENDER		GameFramework::g_pRenderManager
 #define UI			GameFramework::g_pUIManager

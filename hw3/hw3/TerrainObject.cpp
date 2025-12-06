@@ -515,7 +515,7 @@ float TerrainObject::GetHeight(float x, float z, bool bReverseQuad)
 void TerrainObject::SetWireframeMode(bool bMode) 
 { 
 	m_bDrawWireframe = bMode;
-	for (auto& pChild : m_pChildren) {
-		static_pointer_cast<TerrainObject>(pChild)->SetWireframeMode(bMode);
-	}
+	//for (auto& pChild : m_pChildren) {
+	//	static_pointer_cast<TerrainObject>(pChild)->SetWireframeMode(bMode);
+	//}
 }

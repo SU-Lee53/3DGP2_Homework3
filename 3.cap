@@ -1,0 +1,28 @@
+{
+    "rdocCaptureSettings": 1,
+    "settings": {
+        "autoStart": false,
+        "commandLine": "",
+        "environment": [
+        ],
+        "executable": "C:\\Users\\dltmd\\Documents\\3-2\\3DGP2\\Assignment\\3DGP2_Homework3\\hw3\\x64\\Debug\\hw3.exe",
+        "inject": false,
+        "numQueuedFrames": 1,
+        "options": {
+            "allowFullscreen": true,
+            "allowVSync": true,
+            "apiValidation": true,
+            "captureAllCmdLists": true,
+            "captureCallstacks": false,
+            "captureCallstacksOnlyDraws": false,
+            "debugOutputMute": true,
+            "delayForDebugger": 0,
+            "hookIntoChildren": true,
+            "refAllResources": true,
+            "softMemoryLimit": 0,
+            "verifyBufferAccess": true
+        },
+        "queuedFrameCap": 0,
+        "workingDir": "C:/Users/dltmd/Documents/3-2/3DGP2/Assignment/3DGP2_Homework3/hw3/hw3"
+    }
+}

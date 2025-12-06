@@ -23,7 +23,6 @@ void TextureManager::LoadGameTextures(ComPtr<ID3D12GraphicsCommandList> pd3dComm
 	TEXTURE->LoadTexture(pd3dCommandList, "window", L"Window.dds", RESOURCE_TYPE_TEXTURE2D);
 	TEXTURE->LoadTexture(pd3dCommandList, "window_normal", L"Window_normal.dds", RESOURCE_TYPE_TEXTURE2D);
 
-
 	TEXTURE->LoadTexture(pd3dCommandList, "Skybox", L"Skybox/Skybox.dds", RESOURCE_TYPE_TEXTURE2DARRAY);
 }
 

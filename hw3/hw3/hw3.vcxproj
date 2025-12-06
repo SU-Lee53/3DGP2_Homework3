@@ -136,6 +136,7 @@
   <ItemGroup>
     <ClInclude Include="BuildingObject.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="ComputeManager.h" />
     <ClInclude Include="ConstantBuffer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DDSTextureLoader12.h" />
@@ -174,6 +175,7 @@
   <ItemGroup>
     <ClCompile Include="BuildingObject.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="ComputeManager.cpp" />
     <ClCompile Include="ConstantBuffer.cpp" />
     <ClCompile Include="DDSTextureLoader12.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>

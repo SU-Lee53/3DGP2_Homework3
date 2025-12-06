@@ -57,6 +57,7 @@ void EffectManager::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	for (auto& effectPair : m_pEffects) {
 		auto& [pEffect, parameters] = effectPair.second;
 		pEffect->Render(m_pd3dDevice, pd3dCommandList, nDataOffsetBaseInCBuffer, parameters.size());
+		nDataOffsetBaseInCBuffer += parameters.size();
 	}
 }
 
