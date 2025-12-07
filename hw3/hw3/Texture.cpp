@@ -62,10 +62,12 @@ void Texture::LoadTextureFromWICFile(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3
 
 void Texture::CreateUAVTexture(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT nWidth, UINT nHeight)
 {
+	m_nResourceTypes = RESOURCE_TYPE_RWTEXTURE2D;
+
 	D3D12_HEAP_PROPERTIES d3dHeapPropertiesDesc;
 	::ZeroMemory(&d3dHeapPropertiesDesc, sizeof(D3D12_HEAP_PROPERTIES));
 	{
-		d3dHeapPropertiesDesc.Type = D3D12_HEAP_TYPE_UPLOAD;
+		d3dHeapPropertiesDesc.Type = D3D12_HEAP_TYPE_DEFAULT;
 		d3dHeapPropertiesDesc.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 		d3dHeapPropertiesDesc.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 		d3dHeapPropertiesDesc.CreationNodeMask = 1;
@@ -83,8 +85,8 @@ void Texture::CreateUAVTexture(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Gra
 		d3dResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	// 일단 Render Target Back Buffer 와 동일하도록
 		d3dResourceDesc.SampleDesc.Count = 1;
 		d3dResourceDesc.SampleDesc.Quality = 0;
-		d3dResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		d3dResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		d3dResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		d3dResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	}
 
 	HRESULT hr = pd3dDevice->CreateCommittedResource(
@@ -139,6 +141,14 @@ D3D12_SHADER_RESOURCE_VIEW_DESC Texture::GetSRVDesc() const
 		d3dShaderResourceViewDesc.TextureCube.MipLevels = 1;
 		d3dShaderResourceViewDesc.TextureCube.MostDetailedMip = 0;
 		d3dShaderResourceViewDesc.TextureCube.ResourceMinLODClamp = 0.0f;
+		break;
+	case RESOURCE_TYPE_RWTEXTURE2D: //(d3dResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)(d3dResourceDesc.DepthOrArraySize == 6)
+		d3dShaderResourceViewDesc.Format = d3dResourceDesc.Format;
+		d3dShaderResourceViewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		d3dShaderResourceViewDesc.Texture2D.MipLevels = d3dResourceDesc.MipLevels;
+		d3dShaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+		d3dShaderResourceViewDesc.Texture2D.PlaneSlice = 0;
+		d3dShaderResourceViewDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 		break;
 	}
 

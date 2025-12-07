@@ -26,8 +26,8 @@ void TextureManager::LoadGameTextures(ComPtr<ID3D12GraphicsCommandList> pd3dComm
 	TEXTURE->LoadTexture(pd3dCommandList, "Skybox", L"Skybox/Skybox.dds", RESOURCE_TYPE_TEXTURE2DARRAY);
 
 	// Post Processing 전용 UAV
-	TEXTURE->LoadTexture(pd3dCommandList, "RWTexture1", L"", RESOURCE_TYPE_RW_TEXTURE2D);
-	TEXTURE->LoadTexture(pd3dCommandList, "RWTexture2", L"", RESOURCE_TYPE_RW_TEXTURE2D);
+	TEXTURE->LoadTexture(pd3dCommandList, "RWTexture1", L"", RESOURCE_TYPE_RWTEXTURE2D);
+	TEXTURE->LoadTexture(pd3dCommandList, "RWTexture2", L"", RESOURCE_TYPE_RWTEXTURE2D);
 
 }
 
@@ -36,7 +36,7 @@ std::shared_ptr<Texture> TextureManager::LoadTexture(ComPtr<ID3D12GraphicsComman
     auto it = m_pTextureMap.find(strKey);
     if (it == m_pTextureMap.end()) {    // Map 에 텍스쳐가 없음
 		std::shared_ptr<Texture> pTexture = std::make_shared<Texture>();
-		if (nResourceType != RESOURCE_TYPE_RW_TEXTURE2D) {
+		if (nResourceType != RESOURCE_TYPE_RWTEXTURE2D) {
 			pTexture->LoadTextureFromFile(m_pd3dDevice, pd3dCommandList, wstrTexturePath, nResourceType);
 		}
 		else {

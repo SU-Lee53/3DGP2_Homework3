@@ -37,33 +37,35 @@ void FrameBuffer::CreateDescriptorHeaps(ComPtr<ID3D12Device> pd3dDevice, UINT nS
 		d3dDescriptorHeapDesc.NodeMask = 0;
 	}
 	HRESULT hResult = pd3dDevice->CreateDescriptorHeap(&d3dDescriptorHeapDesc, __uuidof(ID3D12DescriptorHeap), (void**)&m_pd3dRTVDescriptorHeap);
-	m_nRtvDescriptorIncrementSize = pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	m_nRTVDescriptorIncrementSize = pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 	// 2. SRV
 	{
 		d3dDescriptorHeapDesc.NumDescriptors = nSwapChainBuffers;
 		d3dDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	}
-	hResult = pd3dDevice->CreateDescriptorHeap(&d3dDescriptorHeapDesc, __uuidof(ID3D12DescriptorHeap), (void**)&m_pd3dSRVUAVDescriptorHeap);
+
+	hResult = pd3dDevice->CreateDescriptorHeap(&d3dDescriptorHeapDesc, __uuidof(ID3D12DescriptorHeap), (void**)&m_pd3dSRVDescriptorHeap);
 }
 
 void FrameBuffer::CreateViews(ComPtr<ID3D12Device> pd3dDevice, ComPtr<IDXGISwapChain> pdxgiSwapChain, UINT nSwapChainBuffers)
 {
 	D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVCPUDescriptorHandle = m_pd3dRTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVUAVCPUDescriptorHandle = m_pd3dSRVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVCPUDescriptorHandle = m_pd3dSRVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
-	m_pSwapChainBackBuffers.resize(nSwapChainBuffers);
+	m_SwapChainBackBuffers.resize(nSwapChainBuffers);
 
 	for (UINT i = 0; i < nSwapChainBuffers; ++i) {
-		pdxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(m_pSwapChainBackBuffers[i].GetAddressOf()));
+		pdxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(m_SwapChainBackBuffers[i].pd3dSwapChainBuffers.GetAddressOf()));
 
 		// RTV
-		pd3dDevice->CreateRenderTargetView(m_pSwapChainBackBuffers[i].Get(), NULL, d3dRTVCPUDescriptorHandle);
-		d3dRTVCPUDescriptorHandle.ptr += m_nRtvDescriptorIncrementSize;
+		pd3dDevice->CreateRenderTargetView(m_SwapChainBackBuffers[i].pd3dSwapChainBuffers.Get(), NULL, d3dRTVCPUDescriptorHandle);
+		m_SwapChainBackBuffers[i].d3dRTVDescriptorHandle = d3dRTVCPUDescriptorHandle;
+		d3dRTVCPUDescriptorHandle.ptr += m_nRTVDescriptorIncrementSize;
 
-		D3D12_RESOURCE_DESC d3dResourceDesc = m_pSwapChainBackBuffers[i]->GetDesc();
 
 		// SRV
+		D3D12_RESOURCE_DESC d3dResourceDesc = m_SwapChainBackBuffers[i].pd3dSwapChainBuffers->GetDesc();
 		D3D12_SHADER_RESOURCE_VIEW_DESC d3dSRVDesc;
 		{
 			d3dSRVDesc.Format = d3dResourceDesc.Format;
@@ -74,10 +76,12 @@ void FrameBuffer::CreateViews(ComPtr<ID3D12Device> pd3dDevice, ComPtr<IDXGISwapC
 			d3dSRVDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 			d3dSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		}
-		pd3dDevice->CreateShaderResourceView(m_pSwapChainBackBuffers[i].Get(), &d3dSRVDesc, d3dSRVUAVCPUDescriptorHandle);
-		d3dSRVUAVCPUDescriptorHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+		pd3dDevice->CreateShaderResourceView(m_SwapChainBackBuffers[i].pd3dSwapChainBuffers.Get(), &d3dSRVDesc, d3dSRVCPUDescriptorHandle);
+		m_SwapChainBackBuffers[i].d3dSRVDescriptorHandle = d3dSRVCPUDescriptorHandle;
+		d3dSRVCPUDescriptorHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
 	}
 }
+
 
 GameFramework::GameFramework(HINSTANCE hInstance, HWND hWnd, UINT uiWidth, UINT uiHeight, bool bEnableDebugLayer)
 {
@@ -129,6 +133,7 @@ void GameFramework::BuildObjects()
 	{
 		g_pTextureManager->LoadGameTextures(m_pd3dCommandList);
 		g_pEffectManager->Initialize(m_pd3dDevice, m_pd3dCommandList);
+		g_pComputeManager->Initialize(m_pd3dDevice);
 
 		std::shared_ptr<IntroScene> pIntroScene = std::make_shared<IntroScene>();
 		pIntroScene->BuildObjects(m_pd3dDevice, m_pd3dCommandList);
@@ -180,7 +185,9 @@ void GameFramework::Render()
 
 	RENDER->Clear();
 	UI->Clear();
-	COMPUTE->SetBackBufferHandle(m_FrameBuffers.GetBackBufferSRVCPUHandle(m_nSwapChainBufferIndex));
+
+	D3D12_CPU_DESCRIPTOR_HANDLE d3dDsvCPUDescriptorHandle = m_pd3dDsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	COMPUTE->SetBackBuffer(m_FrameBuffers.GetFrameBufferResources(m_nSwapChainBufferIndex), d3dDsvCPUDescriptorHandle);
 
 
 	RenderBegin();
@@ -195,6 +202,8 @@ void GameFramework::Render()
 			g_pCurrentScene->RenderDebug(m_pd3dCommandList);
 		}
 		EFFECT->Render(m_pd3dCommandList);
+
+		COMPUTE->Dispatch(m_pd3dCommandList);
 
 		UI->Render(m_pd3dCommandList);
 	}
@@ -297,7 +306,6 @@ void GameFramework::CreateFence()
 
 void GameFramework::CreateSwapChain()
 {
-
 	DXGI_SWAP_CHAIN_DESC dxgiSwapChainDesc;
 	::ZeroMemory(&dxgiSwapChainDesc, sizeof(DXGI_SWAP_CHAIN_DESC));
 	{

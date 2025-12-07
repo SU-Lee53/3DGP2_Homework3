@@ -326,10 +326,10 @@ std::shared_ptr<Camera> AirplanePlayer::ChangeCamera(UINT nNewCameraMode, float 
 	switch (nNewCameraMode)
 	{
 	case CAMERA_MODE_THIRD_PERSON:
-		SetFriction(20.5f);
+		SetFriction(20.f);
 		SetGravity(XMFLOAT3(0.0f, 0.0f, 0.0f));
-		SetMaxVelocityXZ(125.5f);
-		SetMaxVelocityY(140.0f);
+		SetMaxVelocityXZ(500.f);
+		SetMaxVelocityY(300.0f);
 		m_pCamera = OnChangeCamera(CAMERA_MODE_THIRD_PERSON, nCurrentCameraMode);
 		m_pCamera->SetTimeLag(0.25f);
 		m_pCamera->SetOffset(XMFLOAT3(0.0f, 105.0f, -140.0f));
@@ -338,10 +338,10 @@ std::shared_ptr<Camera> AirplanePlayer::ChangeCamera(UINT nNewCameraMode, float 
 		m_pCamera->SetScissorRect(0, 0, GameFramework::g_nClientWidth, GameFramework::g_nClientHeight);
 		break;
 	case CAMERA_MODE_FIRST_PERSON:
-		SetFriction(20.5f);
+		SetFriction(20.f);
 		SetGravity(XMFLOAT3(0.0f, 0.0f, 0.0f));
-		SetMaxVelocityXZ(125.5f);
-		SetMaxVelocityY(140.0f);
+		SetMaxVelocityXZ(500.f);
+		SetMaxVelocityY(300.0f);
 		m_pCamera = OnChangeCamera(CAMERA_MODE_FIRST_PERSON, nCurrentCameraMode);
 		m_pCamera->SetTimeLag(0.0f);
 		m_pCamera->SetOffset(XMFLOAT3(0.0f, 20.0f, 30.5f));

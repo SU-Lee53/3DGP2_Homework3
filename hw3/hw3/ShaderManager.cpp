@@ -106,8 +106,8 @@ void ShaderManager::Initialize()
 	m_pCompiledShaderByteCodeMap.insert({ "VertBlurCS", Shader::CompileShader(L"../HLSL/Compute.hlsl", "CSVertBlur", "cs_5_1", m_pd3dCSBlob.GetAddressOf()) });
 	m_pd3dBlobs.push_back(m_pd3dCSBlob);
 
-	m_pCompiledShaderByteCodeMap.insert({ "FullScreenVS", Shader::CompileShader(L"../HLSL/Compute.hlsl", "VSFullScreen", "vs_5_1", m_pd3dVSBlob.GetAddressOf()) });
-	m_pCompiledShaderByteCodeMap.insert({ "FullScreenPS", Shader::CompileShader(L"../HLSL/Compute.hlsl", "PSFullScreen", "ps_5_1", m_pd3dPSBlob.GetAddressOf()) });
+	m_pCompiledShaderByteCodeMap.insert({ "FullScreenVS", Shader::CompileShader(L"../HLSL/FullScreen.hlsl", "VSFullScreen", "vs_5_1", m_pd3dVSBlob.GetAddressOf()) });
+	m_pCompiledShaderByteCodeMap.insert({ "FullScreenPS", Shader::CompileShader(L"../HLSL/FullScreen.hlsl", "PSFullScreen", "ps_5_1", m_pd3dPSBlob.GetAddressOf()) });
 	m_pd3dBlobs.push_back(m_pd3dVSBlob);
 	m_pd3dBlobs.push_back(m_pd3dPSBlob);
 

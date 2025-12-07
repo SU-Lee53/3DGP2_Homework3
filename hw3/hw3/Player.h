@@ -23,6 +23,7 @@ public:
 	void SetPosition(const XMFLOAT3& xmf3Position) { Move(XMFLOAT3(xmf3Position.x - m_xmf3Position.x, xmf3Position.y - m_xmf3Position.y, xmf3Position.z - m_xmf3Position.z), false); }
 
 	const XMFLOAT3& GetVelocity() const { return m_xmf3Velocity; }
+	float GetMaxVelocityXZ() const { return m_fMaxVelocityXZ; }
 	float GetYaw() const { return m_fYaw; }
 	float GetPitch() const { return m_fPitch; }
 	float GetRoll() const { return m_fRoll; }

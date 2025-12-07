@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ComputeManager.h"
+#include "GameFramework.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ComputeProgram
@@ -63,7 +64,11 @@ void VerticalBlur::UpdateShaderVariables(ComPtr<ID3D12GraphicsCommandList> pd3dC
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ComputeManager
 
-ComputeManager::ComputeManager(ComPtr<ID3D12Device> pd3dDevice)
+ComputeManager::ComputeManager()
+{
+}
+
+void ComputeManager::Initialize(ComPtr<ID3D12Device> pd3dDevice)
 {
 	m_pd3dDevice = pd3dDevice;
 
@@ -78,14 +83,22 @@ ComputeManager::ComputeManager(ComPtr<ID3D12Device> pd3dDevice)
 	pd3dDevice->CreateDescriptorHeap(&d3dHeapDesc, IID_PPV_ARGS(m_pd3dDescriptorHeap.GetAddressOf()));
 
 	CreateComputeRootSignature();
+	CreateGraphicsRootSignature();
+	CreateGraphicsPipelineState();
+
 
 	m_pUAVTextures[0] = TEXTURE->GetTexture("RWTexture1");
 	m_pUAVTextures[1] = TEXTURE->GetTexture("RWTexture2");
+
+	LoadComputePrograms();
 }
 
-void ComputeManager::SetBackBufferHandle(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle)
+void ComputeManager::SetBackBuffer(FrameBufferResources frameBufferResources, D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVHandle)
 {
-	m_d3dBackBufferSRVCPUHandle = cpuHandle;
+	m_pd3dCurrentBackBufferResource = frameBufferResources.pd3dSwapChainBuffers;
+	m_d3dBackBufferRTVCPUHandle = frameBufferResources.d3dRTVDescriptorHandle;
+	m_d3dBackBufferSRVCPUHandle = frameBufferResources.d3dSRVDescriptorHandle;
+	m_d3dDSVCPUHandle = d3dDSVHandle;
 }
 
 void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
@@ -95,7 +108,7 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 		m_pd3dDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
 	};
 
-	pd3dCommandList->SetComputeRootDescriptorTable(0, descHandle.gpuHandle);
+	pd3dCommandList->SetComputeRootSignature(m_pd3dComputeRootSignature.Get());
 	pd3dCommandList->SetDescriptorHeaps(1, m_pd3dDescriptorHeap.GetAddressOf());
 
 	// Descriptor Table 구성
@@ -112,6 +125,20 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	
 	m_pd3dDevice->CopyDescriptorsSimple(1, descHandle.cpuHandle, m_pUAVTextures[1]->GetUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	descHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+
+	// 플레이어 속도에 따라 블러 강도를 조절
+	auto& pPlayer = CUR_SCENE->GetPlayer();
+	float blurScale = 0.f;
+	if (pPlayer) {
+		XMFLOAT3 xmf3PlayerVelocity = pPlayer->GetVelocity();
+		float fSpeedXZ = sqrtf(xmf3PlayerVelocity.x * xmf3PlayerVelocity.x + xmf3PlayerVelocity.z * xmf3PlayerVelocity.z);
+		float fMaxVelocityXZ = pPlayer->GetMaxVelocityXZ();
+
+		blurScale = (fSpeedXZ - 400.f) / (fMaxVelocityXZ - 400.f);
+		blurScale = std::clamp(blurScale, 0.f, 1.f);
+	}
+
+	pd3dCommandList->SetComputeRoot32BitConstants(1, 1, &blurScale, 0);
 
 	auto& pHorzBlur = m_pComputePrograms[typeid(HorizentalBlur)];
 	auto& pVertBlur = m_pComputePrograms[typeid(VerticalBlur)];
@@ -132,7 +159,7 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	pd3dCommandList->ResourceBarrier(3, resourceBarriers);
 
 	// Horizental Blur 수행
-	UINT nThreadX = std::ceil((float)nClientWidth / 256.f);
+	UINT nThreadX = (UINT)std::ceil((float)nClientWidth / 256.f);
 	UINT nThreadY = nClientHeight;
 	UINT nThreadZ = 1;
 	pd3dCommandList->SetComputeRootDescriptorTable(0, descHandle.gpuHandle);
@@ -145,7 +172,7 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	// Vertical Blur 수행
 	pd3dCommandList->SetComputeRootDescriptorTable(0, descHandle.gpuHandle);
 	nThreadX = nClientWidth;
-	nThreadY = std::ceil((float)nClientHeight / 256.f);
+	nThreadY = (UINT)std::ceil((float)nClientHeight / 256.f);
 	nThreadZ = 1;
 	pVertBlur->Dispatch(pd3dCommandList, nThreadX, nThreadY, nThreadZ);
 	descHandle.gpuHandle.ptr += 2 * GameFramework::g_uiDescriptorHandleIncrementSize;
@@ -165,7 +192,6 @@ void ComputeManager::LoadComputePrograms()
 
 	m_pComputePrograms.insert({ typeid(HorizentalBlur), std::move(pHorzBlur) });
 	m_pComputePrograms.insert({ typeid(VerticalBlur), std::move(pVertBlur) });
-
 }
 
 void ComputeManager::CreateComputeRootSignature()
@@ -186,12 +212,17 @@ void ComputeManager::CreateComputeRootSignature()
 	d3dDescriptorRanges[1].RegisterSpace = 0;
 	d3dDescriptorRanges[1].OffsetInDescriptorsFromTableStart = 1;
 
-	D3D12_ROOT_PARAMETER d3dRootParameters[1];
+	D3D12_ROOT_PARAMETER d3dRootParameters[2];
 	d3dRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	d3dRootParameters[0].DescriptorTable.NumDescriptorRanges = 2;
 	d3dRootParameters[0].DescriptorTable.pDescriptorRanges = &d3dDescriptorRanges[0];
 	d3dRootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
+	d3dRootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	d3dRootParameters[1].Constants.Num32BitValues = 1;
+	d3dRootParameters[1].Constants.ShaderRegister = 0;
+	d3dRootParameters[1].Constants.RegisterSpace = 0;
+	d3dRootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
@@ -213,7 +244,7 @@ void ComputeManager::CreateComputeRootSignature()
 	d3dSamplerDescs[0].MaxLOD = D3D12_FLOAT32_MAX;
 	d3dSamplerDescs[0].ShaderRegister = 0;
 	d3dSamplerDescs[0].RegisterSpace = 0;
-	d3dSamplerDescs[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	d3dSamplerDescs[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	
 	d3dSamplerDescs[1].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	d3dSamplerDescs[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -224,9 +255,9 @@ void ComputeManager::CreateComputeRootSignature()
 	d3dSamplerDescs[1].ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 	d3dSamplerDescs[1].MinLOD = 0;
 	d3dSamplerDescs[1].MaxLOD = D3D12_FLOAT32_MAX;
-	d3dSamplerDescs[1].ShaderRegister = 0;
+	d3dSamplerDescs[1].ShaderRegister = 1;
 	d3dSamplerDescs[1].RegisterSpace = 0;
-	d3dSamplerDescs[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	d3dSamplerDescs[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 	D3D12_ROOT_SIGNATURE_DESC d3dRootSignatureDesc{};
 	{
@@ -292,8 +323,6 @@ void ComputeManager::CreateGraphicsRootSignature()
 
 
 	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags =
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS;
@@ -322,7 +351,7 @@ void ComputeManager::CreateGraphicsRootSignature()
 	d3dSamplerDescs[1].ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 	d3dSamplerDescs[1].MinLOD = 0;
 	d3dSamplerDescs[1].MaxLOD = D3D12_FLOAT32_MAX;
-	d3dSamplerDescs[1].ShaderRegister = 0;
+	d3dSamplerDescs[1].ShaderRegister = 1;
 	d3dSamplerDescs[1].RegisterSpace = 0;
 	d3dSamplerDescs[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -347,12 +376,12 @@ void ComputeManager::CreateGraphicsRootSignature()
 		__debugbreak();
 	}
 
-	m_pd3dDevice->CreateRootSignature(0, pd3dSignatureBlob->GetBufferPointer(), pd3dSignatureBlob->GetBufferSize(), IID_PPV_ARGS(m_pd3dComputeRootSignature.GetAddressOf()));
+	m_pd3dDevice->CreateRootSignature(0, pd3dSignatureBlob->GetBufferPointer(), pd3dSignatureBlob->GetBufferSize(), IID_PPV_ARGS(m_pd3dUAVToBackBufferRootSignature.GetAddressOf()));
 }
 
-void ComputeManager::CreateGraphcisPipelineState()
+void ComputeManager::CreateGraphicsPipelineState()
 {
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC d3dPipelineDesc;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC d3dPipelineDesc{};
 	{
 		d3dPipelineDesc.pRootSignature = m_pd3dUAVToBackBufferRootSignature.Get();
 		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("FullScreenVS");
@@ -370,5 +399,8 @@ void ComputeManager::CreateGraphcisPipelineState()
 		d3dPipelineDesc.SampleDesc.Count = 1;
 		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 	}
-	m_pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dUAVToBackBufferPipelineState.GetAddressOf()));
+	HRESULT hr = m_pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dUAVToBackBufferPipelineState.GetAddressOf()));
+	if (FAILED(hr)) {
+		__debugbreak();
+	}
 }

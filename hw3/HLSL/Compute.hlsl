@@ -2,10 +2,15 @@
 Texture2D<float4> gtxtTextureInputRO : register(t0);
 RWTexture2D<float4> gtxtTextureOutputRW : register(u0);
 
+cbuffer cbBlurScaleData : register(b0)
+{
+    float gfBlurScale;
+};
+
 SamplerState gssPoint : register(s0);
 SamplerState gssLinear : register(s1);
 
-groupshared float4 gSharedCache[256];
+groupshared float4 gSharedCache[(256 + (2 * 5))];
 
 static float gfWeights[11] =
 {
@@ -34,13 +39,16 @@ void CSHorzBlur(int3 vGroupThreadID : SV_GroupThreadID, int3 vDispatchThreadID :
     GroupMemoryBarrierWithGroupSync();
     
     float4 cBlurredColor = float4(0, 0, 0, 0);
+    float4 cOriginalColor = gSharedCache[vGroupThreadID.x + 5];
+    float4 cFinalColor = float4(0, 0, 0, 0);
     for (int i = -5; i <= 5; i++)
     {
         int k = vGroupThreadID.x + 5 + i;
         cBlurredColor += gfWeights[i + 5] * gSharedCache[k];
     }
+    cFinalColor = lerp(cOriginalColor, cBlurredColor, gfBlurScale);
     
-    gtxtTextureOutputRW[vDispatchThreadID.xy] = cBlurredColor;
+    gtxtTextureOutputRW[vDispatchThreadID.xy] = cFinalColor;
 }
 
 [numthreads(1, 256, 1)]
@@ -64,63 +72,14 @@ void CSVertBlur(int3 vGroupThreadID : SV_GroupThreadID, int3 vDispatchThreadID :
     GroupMemoryBarrierWithGroupSync();
     
     float4 cBlurredColor = float4(0, 0, 0, 0);
+    float4 cOriginalColor = gSharedCache[vGroupThreadID.y + 5];
+    float4 cFinalColor = float4(0, 0, 0, 0);
     for (int i = -5; i <= 5; i++)
     {
         int k = vGroupThreadID.y + 5 + i;
         cBlurredColor += gfWeights[i + 5] * gSharedCache[k];
     }
+    cFinalColor = lerp(cOriginalColor, cBlurredColor, gfBlurScale);
     
-    gtxtTextureOutputRW[vDispatchThreadID.xy] = cBlurredColor;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-// FullScreen Graphics Pass
-
-struct VS_FULLSCREEN_OUTPUT
-{
-    float4 position : SV_Position;
-    float2 uv : TEXCOORD;
-};
-
-VS_FULLSCREEN_OUTPUT VSFullScreen(uint nVertexID : SV_VertexID)
-{
-    VS_FULLSCREEN_OUTPUT output;
-    
-    if (nVertexID == 0)
-    {
-        output.position = float4(float2(-1.f, 1.f), 0.f, 1.f);
-        output.uv = float2(0.f, 0.f);
-    }
-    else if (nVertexID == 1)
-    {
-        output.position = float4(float2(1.f, 1.f), 0.f, 1.f);8
-        output.uv = float2(1.f, 0.f);
-    }
-    else if (nVertexID == 2)
-    {
-        output.position = float4(float2(-1.f, -1.f), 0.f, 1.f);
-        output.uv = float2(0.f, 1.f);
-    }
-    else if (nVertexID == 3)
-    {
-        output.position = float4(float2(1.f, 1.f), 0.f, 1.f);
-        output.uv = float2(1.f, 0.f);
-    }
-    else if (nVertexID == 4)
-    {
-        output.position = float4(float2(1.f, -1.f), 0.f, 1.f);
-        output.uv = float2(1.f, 1.f);
-    }
-    else if (nVertexID == 5)
-    {
-        output.position = float4(float2(-1.f, -1.f), 0.f, 1.f);
-        output.uv = float2(0.f, 1.f);
-    }
-    
-    return output;
-}
-
-float4 PSFullScreen(VS_FULLSCREEN_OUTPUT input) : SV_Target
-{
-    return gtxtTextureInputRO.Sample(gssPoint, input.uv);
+    gtxtTextureOutputRW[vDispatchThreadID.xy] = cFinalColor;
 }

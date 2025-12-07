@@ -25,23 +25,23 @@ class HorizentalBlur : public ComputeProgram {
 public:
 	virtual void CreatePipelineState(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSignature> pd3dRootSignature) override;
 	virtual void UpdateShaderVariables(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& descHandle) override;
-
-	virtual void Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT xThread, UINT yThreads, UINT zThreads);
 };
 
 class VerticalBlur : public ComputeProgram {
 public:
 	virtual void CreatePipelineState(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSignature> pd3dRootSignature) override;
 	virtual void UpdateShaderVariables(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& descHandle) override;
-
-	virtual void Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT xThread, UINT yThreads, UINT zThreads);
 };
+
+struct FrameBufferResources;
 
 class ComputeManager {
 public:
-	ComputeManager(ComPtr<ID3D12Device> pd3dDevice);
+	ComputeManager();
 
-	void SetBackBufferHandle(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle);
+	void Initialize(ComPtr<ID3D12Device> pd3dDevice);
+
+	void SetBackBuffer(FrameBufferResources frameBufferResources, D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVHandle);
 	void Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);
 	void CopyUAVToBackBuffer(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& descHandle);
 
@@ -51,7 +51,7 @@ private:
 
 private:
 	void CreateGraphicsRootSignature();
-	void CreateGraphcisPipelineState();
+	void CreateGraphicsPipelineState();
 
 private:
 	// Compute

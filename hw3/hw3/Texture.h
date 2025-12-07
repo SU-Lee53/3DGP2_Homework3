@@ -7,7 +7,7 @@ enum RESOURCE_TYPE : UINT {
 	RESOURCE_TYPE_TEXTURE_CUBE		= 0x04,
 	RESOURCE_TYPE_BUFFER			= 0x05,
 
-	RESOURCE_TYPE_RW_TEXTURE2D		= 0x06
+	RESOURCE_TYPE_RWTEXTURE2D		= 0x06
 };
 
 class Texture : public std::enable_shared_from_this<Texture> {

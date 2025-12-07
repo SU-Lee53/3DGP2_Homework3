@@ -11,40 +11,44 @@
 
 class Scene;
 
+struct FrameBufferResources {
+	ComPtr<ID3D12Resource> pd3dSwapChainBuffers;
+	D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVDescriptorHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVDescriptorHandle;
+};
+
 class FrameBuffer {
 public:
 	void CreateDescriptorHeaps(ComPtr<ID3D12Device> pd3dDevice, UINT nSwapChainBuffers);
 	void CreateViews(ComPtr<ID3D12Device> pd3dDevice, ComPtr<IDXGISwapChain> pdxgiSwapChain, UINT nSwapChainBuffers);
 	void ResetBackBuffers(UINT nSwapChainBuffers) {
 		for (int i = 0; i < nSwapChainBuffers; i++)
-			if (m_pSwapChainBackBuffers[i])
-				m_pSwapChainBackBuffers[i].Reset();
+			if (m_SwapChainBackBuffers[i].pd3dSwapChainBuffers)
+				m_SwapChainBackBuffers[i].pd3dSwapChainBuffers.Reset();
+	}
+
+	const FrameBufferResources& GetFrameBufferResources(UINT nBufferIndex) { 
+		return m_SwapChainBackBuffers[nBufferIndex]; 
 	}
 
 	ComPtr<ID3D12Resource> GetBackBuffer(UINT nBufferIndex) {
-		return m_pSwapChainBackBuffers[nBufferIndex];
+		return m_SwapChainBackBuffers[nBufferIndex].pd3dSwapChainBuffers;
 	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferRTVCPUHandle(UINT nBackBufferIndex) {
-		D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVCPUHandle = m_pd3dRTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		d3dRTVCPUHandle.ptr += nBackBufferIndex * m_nRtvDescriptorIncrementSize;
-		return d3dRTVCPUHandle;
+		return m_SwapChainBackBuffers[nBackBufferIndex].d3dRTVDescriptorHandle;
 	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferSRVCPUHandle(UINT nBackBufferIndex) {
-		D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVCPUHandle = m_pd3dSRVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		d3dSRVCPUHandle.ptr += nBackBufferIndex * m_nRtvDescriptorIncrementSize;
-		return d3dSRVCPUHandle;
+		return m_SwapChainBackBuffers[nBackBufferIndex].d3dSRVDescriptorHandle;
 	}
 
 private:
-	std::vector<ComPtr<ID3D12Resource>>		m_pSwapChainBackBuffers;
+	std::vector<FrameBufferResources>		m_SwapChainBackBuffers;
 	ComPtr<ID3D12DescriptorHeap>			m_pd3dRTVDescriptorHeap = NULL;
 	ComPtr<ID3D12DescriptorHeap>			m_pd3dSRVDescriptorHeap = NULL;
 
-public:
-	UINT m_nRtvDescriptorIncrementSize;
-
+	UINT m_nRTVDescriptorIncrementSize = 0;
 };
 
 class GameFramework {
@@ -104,8 +108,6 @@ private:
 	void CreateRtvAndDsvDescriptorHeaps();
 	void CreateRenderTargetViews();
 	void CreateDepthStencilView();
-
-
 
 private:
 	void WaitForGPUComplete();

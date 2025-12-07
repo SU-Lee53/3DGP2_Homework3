@@ -98,10 +98,10 @@ void GameScene::BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 	m_pPlayer = pAirplanePlayer;
 	m_pPlayer->Initialize();
 
-	m_pPlayer->SetFriction(20.5f);
+	m_pPlayer->SetFriction(20.f);
 	m_pPlayer->SetGravity(XMFLOAT3(0.0f, 0.0f, 0.0f));
-	m_pPlayer->SetMaxVelocityXZ(125.5f);
-	m_pPlayer->SetMaxVelocityY(140.0f);
+	m_pPlayer->SetMaxVelocityXZ(500.f);
+	m_pPlayer->SetMaxVelocityY(300.0f);
 	m_pPlayer->SetPosition(XMFLOAT3(3500.f, 1000.0f, 3500.0f));
 
 	XMFLOAT3 xmf3Scale(18.0f, 4.0f, 18.0f);
