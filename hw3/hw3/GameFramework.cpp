@@ -18,6 +18,7 @@ std::unique_ptr<UIManager>			GameFramework::g_pUIManager = nullptr;
 std::unique_ptr<TextureManager>		GameFramework::g_pTextureManager = nullptr;
 std::unique_ptr<ShaderManager>		GameFramework::g_pShaderManager = nullptr;
 std::unique_ptr<EffectManager>		GameFramework::g_pEffectManager = nullptr;
+std::unique_ptr<ComputeManager>		GameFramework::g_pComputeManager = nullptr;
 
 std::vector<std::shared_ptr<Scene>>		GameFramework::g_pScenes{};
 std::shared_ptr<Scene>					GameFramework::g_pCurrentScene = nullptr;
@@ -50,6 +51,8 @@ void FrameBuffer::CreateViews(ComPtr<ID3D12Device> pd3dDevice, ComPtr<IDXGISwapC
 {
 	D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVCPUDescriptorHandle = m_pd3dRTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVUAVCPUDescriptorHandle = m_pd3dSRVUAVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
+	m_pSwapChainBackBuffers.resize(nSwapChainBuffers);
 
 	for (UINT i = 0; i < nSwapChainBuffers; ++i) {
 		pdxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(m_pSwapChainBackBuffers[i].GetAddressOf()));
@@ -103,6 +106,7 @@ GameFramework::GameFramework(HINSTANCE hInstance, HWND hWnd, UINT uiWidth, UINT 
 	g_pRenderManager = std::make_unique<RenderManager>(m_pd3dDevice, m_pd3dCommandList);
 	g_pShaderManager = std::make_unique<ShaderManager>(m_pd3dDevice);
 	g_pEffectManager = std::make_unique<EffectManager>();
+	g_pComputeManager = std::make_unique<ComputeManager>();
 	g_pShaderManager->Initialize();
 
 	g_pUIManager = std::make_unique<UIManager>(m_pd3dDevice);
@@ -176,6 +180,8 @@ void GameFramework::Render()
 
 	RENDER->Clear();
 	UI->Clear();
+	COMPUTE->SetBackBufferHandle(m_FrameBuffers.GetBackBufferSRVCPUHandle(m_nSwapChainBufferIndex));
+
 
 	RenderBegin();
 	
@@ -188,9 +194,9 @@ void GameFramework::Render()
 		if (RenderManager::g_bRenderOBBForDebug) {
 			g_pCurrentScene->RenderDebug(m_pd3dCommandList);
 		}
+		EFFECT->Render(m_pd3dCommandList);
 
 		UI->Render(m_pd3dCommandList);
-		EFFECT->Render(m_pd3dCommandList);
 	}
 
 	RenderEnd();
@@ -500,7 +506,7 @@ void GameFramework::RenderBegin()
 	d3dResourceBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	m_pd3dCommandList->ResourceBarrier(1, &d3dResourceBarrier);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE d3dRtvCPUDescriptorHandle = m_FrameBuffers.GetBackBufferCPUHandle(m_nSwapChainBufferIndex); // m_pd3dRtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE d3dRtvCPUDescriptorHandle = m_FrameBuffers.GetBackBufferRTVCPUHandle(m_nSwapChainBufferIndex); // m_pd3dRtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
 	D3D12_CPU_DESCRIPTOR_HANDLE d3dDsvCPUDescriptorHandle = m_pd3dDsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 

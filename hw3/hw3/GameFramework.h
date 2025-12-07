@@ -7,6 +7,7 @@
 #include "TextureManager.h"
 #include "ShaderManager.h"
 #include "EffectManager.h"
+#include "ComputeManager.h"
 
 class Scene;
 
@@ -24,16 +25,22 @@ public:
 		return m_pSwapChainBackBuffers[nBufferIndex];
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferCPUHandle(UINT nBackBufferIndex) {
+	D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferRTVCPUHandle(UINT nBackBufferIndex) {
 		D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVCPUHandle = m_pd3dRTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 		d3dRTVCPUHandle.ptr += nBackBufferIndex * m_nRtvDescriptorIncrementSize;
 		return d3dRTVCPUHandle;
 	}
 
+	D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferSRVCPUHandle(UINT nBackBufferIndex) {
+		D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVCPUHandle = m_pd3dSRVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		d3dSRVCPUHandle.ptr += nBackBufferIndex * m_nRtvDescriptorIncrementSize;
+		return d3dSRVCPUHandle;
+	}
+
 private:
-	ComPtr<ID3D12Resource>				m_pSwapChainBackBuffers[2];
-	ComPtr<ID3D12DescriptorHeap>		m_pd3dRTVDescriptorHeap = NULL;
-	ComPtr<ID3D12DescriptorHeap>		m_pd3dSRVUAVDescriptorHeap = NULL;
+	std::vector<ComPtr<ID3D12Resource>>		m_pSwapChainBackBuffers;
+	ComPtr<ID3D12DescriptorHeap>			m_pd3dRTVDescriptorHeap = NULL;
+	ComPtr<ID3D12DescriptorHeap>			m_pd3dSRVDescriptorHeap = NULL;
 
 public:
 	UINT m_nRtvDescriptorIncrementSize;
@@ -85,6 +92,7 @@ public:
 	static std::unique_ptr<RenderManager>		g_pRenderManager;
 	static std::unique_ptr<UIManager>			g_pUIManager;
 	static std::unique_ptr<EffectManager>		g_pEffectManager;
+	static std::unique_ptr<ComputeManager>		g_pComputeManager;
 
 #pragma region D3D
 private:
@@ -120,7 +128,6 @@ public:
 	const static UINT g_nSwapChainBuffers = 2;
 
 private:
-
 	// DXGI
 	ComPtr<IDXGIFactory4>	m_pdxgiFactory;
 	ComPtr<IDXGISwapChain3>	m_pdxgiSwapChain;
@@ -163,6 +170,7 @@ private:
 #define RENDER		GameFramework::g_pRenderManager
 #define UI			GameFramework::g_pUIManager
 #define EFFECT		GameFramework::g_pEffectManager
+#define COMPUTE		GameFramework::g_pComputeManager
 
 #define RESOURCE	GameFramework::g_pResourceManager
 #define TEXTURE		GameFramework::g_pTextureManager

@@ -99,6 +99,11 @@ D3D12_GPU_DESCRIPTOR_HANDLE StructuredBuffer::GetGPUDescriptorHandle() const
 	return m_pd3dSRVHeap->GetGPUDescriptorHandleForHeapStart();
 }
 
+void StructuredBuffer::CopyBuffer(const StructuredBuffer& srcBuffer, StructuredBuffer& destBuffer, UINT nSizeInBytes)
+{
+	std::memcpy(destBuffer.m_pMappedPtr, srcBuffer.m_pMappedPtr, nSizeInBytes);
+}
+
 #ifdef WITH_UPLOAD_BUFFER
 void StructuredBuffer::UpdateResources(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 {

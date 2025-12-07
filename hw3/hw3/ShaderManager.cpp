@@ -17,6 +17,7 @@ void ShaderManager::Initialize()
 	ComPtr<ID3DBlob> m_pd3dHSBlob;
 	ComPtr<ID3DBlob> m_pd3dDSBlob;
 	ComPtr<ID3DBlob> m_pd3dPSBlob;
+	ComPtr<ID3DBlob> m_pd3dCSBlob;
 
 	// Shaders.hlsl
 	m_pCompiledShaderByteCodeMap.insert( {"StandardVS", Shader::CompileShader(L"../HLSL/Shaders.hlsl", "VSStandard", "vs_5_1", m_pd3dVSBlob.GetAddressOf())} );
@@ -98,6 +99,12 @@ void ShaderManager::Initialize()
 	m_pd3dBlobs.push_back(m_pd3dDSBlob);
 	m_pd3dBlobs.push_back(m_pd3dPSBlob);
 
+	// Blurring
+	m_pCompiledShaderByteCodeMap.insert({ "HorzBlurCS", Shader::CompileShader(L"../HLSL/Compute.hlsl", "CSHorzBlur", "cs_5_1", m_pd3dCSBlob.GetAddressOf()) });
+	m_pd3dBlobs.push_back(m_pd3dCSBlob);
+	
+	m_pCompiledShaderByteCodeMap.insert({ "VertBlurCS", Shader::CompileShader(L"../HLSL/Compute.hlsl", "CSVertBlur", "cs_5_1", m_pd3dCSBlob.GetAddressOf()) });
+	m_pd3dBlobs.push_back(m_pd3dCSBlob);
 
 
 	Load<StandardShader>();

@@ -23,6 +23,10 @@ struct CB_OBB_DEBUG_DATA {
 
 class Camera;
 
+// 12.07
+// TODO : 이전 프레임의 World 행렬 보관 필요
+// 나중에 렌더링시 motion vector 를 구하기 위함
+
 class GameObject : public std::enable_shared_from_this<GameObject> {
 public:
 	GameObject();
@@ -80,7 +84,8 @@ private:
 	void UpdateMinMaxInBoundingBox(float& fMinX, float& fMaxX, float& fMinY, float& fMaxY, float& fMinZ, float& fMaxZ);
 
 public:
-	XMFLOAT4X4 GetWorldMatrix() const { return m_xmf4x4World; }
+	const XMFLOAT4X4& GetWorldMatrix() const { return m_xmf4x4World; }
+	const XMFLOAT4X4& GetPrevWorldMatrix() const { return m_xmf4x4CachedLastFrameTransform; }
 	std::shared_ptr<Mesh> GetMesh() const { return m_pMesh; }
 	std::vector<std::shared_ptr<Material>>& GetMaterials() { return m_pMaterials; }
 

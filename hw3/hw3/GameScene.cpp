@@ -218,6 +218,10 @@ void GameScene::ReleaseUploadBuffers()
 
 bool GameScene::ProcessInput(UCHAR* pKeysBuffer)
 {
+	for (auto pObj : m_pGameObjects) {
+		pObj->CacheLastFrameTransform();
+	}
+
 	m_pPlayer->CacheLastFrameTransform();
 
 	DWORD dwDirection = 0;

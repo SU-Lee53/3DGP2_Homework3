@@ -223,6 +223,10 @@ void GameObject::Rotate(XMFLOAT4* pxmf4Quaternion)
 void GameObject::CacheLastFrameTransform()
 {
 	m_xmf4x4CachedLastFrameTransform = m_xmf4x4Transform;
+
+	for (auto& pChild : m_pChildren) {
+		pChild->CacheLastFrameTransform();
+	}
 }
 
 void GameObject::UpdateTransform(XMFLOAT4X4* pxmf4x4Parent)

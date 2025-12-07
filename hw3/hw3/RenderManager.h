@@ -13,7 +13,7 @@ class StructuredBuffer;
 #define ASSUMED_REQUIRED_DESCRIPTOR_COUNT			Scene::g_uiDescriptorCountPerScene + 1 + ASSUMED_MESH_PER_INSTANCE * ASSUMED_MATERIAL_PER_MESH * ASSUMED_OBJECT_TYPE_PER_SCENE
 
 struct INSTANCE_DATA {
-	XMFLOAT4X4 xmf4x4GameObject;
+	XMFLOAT4X4 xmf4x4World;
 };
 
 struct INSTANCE_KEY {
@@ -95,7 +95,6 @@ private:
 	StructuredBuffer				m_InstanceDataSBuffer;
 	StructuredBuffer				m_InstanceDataOnMirrorSBuffer;
 	StructuredBuffer				m_InstanceDataTransparentSBuffer;
-
 	ConstantBuffer					m_LightOnMirrorCBuffer;
 
 	UINT m_nDrawCalls = 0;

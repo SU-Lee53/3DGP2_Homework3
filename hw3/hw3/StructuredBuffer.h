@@ -41,10 +41,11 @@ private:
 #ifdef WITH_UPLOAD_BUFFER
 	ComPtr<ID3D12Resource>			m_pd3dUploadBuffer = nullptr;
 #endif
-
-
 	void*							m_pMappedPtr = nullptr;
 	UINT							m_nDatas = 0;
+
+public:
+	static void CopyBuffer(const StructuredBuffer& srcBuffer, StructuredBuffer& destBuffer, UINT nSizeInBytes);
 
 };
 

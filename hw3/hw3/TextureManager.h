@@ -16,6 +16,7 @@ public:
 
 public:
 	D3D12_CPU_DESCRIPTOR_HANDLE CreateSRV(std::shared_ptr<Texture> pTexture);
+	D3D12_CPU_DESCRIPTOR_HANDLE CreateUAV(std::shared_ptr<Texture> pTexture);
 
 
 private:
@@ -23,7 +24,7 @@ private:
 	std::unordered_map<std::string, std::shared_ptr<Texture>> m_pTextureMap;
 
 	ComPtr<ID3D12DescriptorHeap>				m_pd3dDescriptorHeap;
-	UINT nSRVCreated = 0;
+	UINT nSRVUAVCreated = 0;
 
 };
 

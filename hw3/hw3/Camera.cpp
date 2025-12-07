@@ -11,6 +11,8 @@ Camera::Camera()
 	m_xmf4x4View = Matrix4x4::Identity();
 	m_xmf4x4InverseView = Matrix4x4::Identity();
 	m_xmf4x4Projection = Matrix4x4::Identity();
+	m_xmf4x4PrevView = Matrix4x4::Identity();
+	m_xmf4x4PrevProjection = Matrix4x4::Identity();
 	m_d3dViewport = { 0, 0, (float)GameFramework::g_nClientWidth , (float)GameFramework::g_nClientHeight, 0.0f, 1.0f };
 	m_d3dScissorRect = { 0, 0, (long)GameFramework::g_nClientWidth , (long)GameFramework::g_nClientHeight };
 	m_xmf3Position = XMFLOAT3(0.0f, 0.0f, 0.0f);

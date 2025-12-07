@@ -60,6 +60,51 @@ void Texture::LoadTextureFromWICFile(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3
 	}
 }
 
+void Texture::CreateUAVTexture(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT nWidth, UINT nHeight)
+{
+	D3D12_HEAP_PROPERTIES d3dHeapPropertiesDesc;
+	::ZeroMemory(&d3dHeapPropertiesDesc, sizeof(D3D12_HEAP_PROPERTIES));
+	{
+		d3dHeapPropertiesDesc.Type = D3D12_HEAP_TYPE_UPLOAD;
+		d3dHeapPropertiesDesc.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		d3dHeapPropertiesDesc.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		d3dHeapPropertiesDesc.CreationNodeMask = 1;
+		d3dHeapPropertiesDesc.VisibleNodeMask = 1;
+	}
+
+	D3D12_RESOURCE_DESC d3dResourceDesc;
+	::ZeroMemory(&d3dResourceDesc, sizeof(D3D12_RESOURCE_DESC));
+	{
+		d3dResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		d3dResourceDesc.Width = nWidth;
+		d3dResourceDesc.Height = nHeight;
+		d3dResourceDesc.DepthOrArraySize = 1;
+		d3dResourceDesc.MipLevels = 1;
+		d3dResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	// 일단 Render Target Back Buffer 와 동일하도록
+		d3dResourceDesc.SampleDesc.Count = 1;
+		d3dResourceDesc.SampleDesc.Quality = 0;
+		d3dResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		d3dResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	}
+
+	HRESULT hr = pd3dDevice->CreateCommittedResource(
+		&d3dHeapPropertiesDesc,
+		D3D12_HEAP_FLAG_NONE,
+		&d3dResourceDesc,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,	// 업로드힙 필요없고 바로 사용할꺼임
+		NULL,
+		IID_PPV_ARGS(m_pd3dTextureResource.GetAddressOf())
+	);
+
+	if (FAILED(hr)) {
+		__debugbreak();
+	}
+
+
+	m_SRVCPUDescriptorHandle = TEXTURE->CreateSRV(shared_from_this());
+	m_UAVCPUDescriptorHandle = TEXTURE->CreateUAV(shared_from_this());
+}
+
 D3D12_SHADER_RESOURCE_VIEW_DESC Texture::GetSRVDesc() const
 {
 	D3D12_RESOURCE_DESC d3dResourceDesc = m_pd3dTextureResource->GetDesc();
@@ -191,5 +236,7 @@ void Texture::LoadTextureFromFile(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12
 
 void Texture::ReleaseUploadBuffers()
 {
-	m_pd3dUploadBuffer.Reset();
+	if (m_pd3dUploadBuffer) {
+		m_pd3dUploadBuffer.Reset();
+	}
 }
