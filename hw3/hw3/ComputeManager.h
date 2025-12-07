@@ -43,7 +43,7 @@ public:
 
 	void SetBackBufferHandle(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle);
 	void Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);
-	void CopyUAVToBackBuffer(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);
+	void CopyUAVToBackBuffer(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& descHandle);
 
 private:
 	void CreateComputeRootSignature();
@@ -60,7 +60,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap>	m_pd3dDescriptorHeap = nullptr;
 
 	// Graphics
-	ComPtr<ID3D12PipelineState>		m_pd3dUAVToBackBufferRootSignature = nullptr;
+	ComPtr<ID3D12RootSignature>		m_pd3dUAVToBackBufferRootSignature = nullptr;
 	ComPtr<ID3D12PipelineState>		m_pd3dUAVToBackBufferPipelineState = nullptr;
 
 	// UAV texture
@@ -70,6 +70,7 @@ private:
 	ComPtr<ID3D12Resource>			m_pd3dCurrentBackBufferResource = nullptr;
 	D3D12_CPU_DESCRIPTOR_HANDLE		m_d3dBackBufferRTVCPUHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE		m_d3dBackBufferSRVCPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE		m_d3dDSVCPUHandle;
 
 	std::unordered_map<std::type_index, std::unique_ptr<ComputeProgram>> m_pComputePrograms;
 };

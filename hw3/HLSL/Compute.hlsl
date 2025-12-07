@@ -72,3 +72,55 @@ void CSVertBlur(int3 vGroupThreadID : SV_GroupThreadID, int3 vDispatchThreadID :
     
     gtxtTextureOutputRW[vDispatchThreadID.xy] = cBlurredColor;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// FullScreen Graphics Pass
+
+struct VS_FULLSCREEN_OUTPUT
+{
+    float4 position : SV_Position;
+    float2 uv : TEXCOORD;
+};
+
+VS_FULLSCREEN_OUTPUT VSFullScreen(uint nVertexID : SV_VertexID)
+{
+    VS_FULLSCREEN_OUTPUT output;
+    
+    if (nVertexID == 0)
+    {
+        output.position = float4(float2(-1.f, 1.f), 0.f, 1.f);
+        output.uv = float2(0.f, 0.f);
+    }
+    else if (nVertexID == 1)
+    {
+        output.position = float4(float2(1.f, 1.f), 0.f, 1.f);8
+        output.uv = float2(1.f, 0.f);
+    }
+    else if (nVertexID == 2)
+    {
+        output.position = float4(float2(-1.f, -1.f), 0.f, 1.f);
+        output.uv = float2(0.f, 1.f);
+    }
+    else if (nVertexID == 3)
+    {
+        output.position = float4(float2(1.f, 1.f), 0.f, 1.f);
+        output.uv = float2(1.f, 0.f);
+    }
+    else if (nVertexID == 4)
+    {
+        output.position = float4(float2(1.f, -1.f), 0.f, 1.f);
+        output.uv = float2(1.f, 1.f);
+    }
+    else if (nVertexID == 5)
+    {
+        output.position = float4(float2(-1.f, -1.f), 0.f, 1.f);
+        output.uv = float2(0.f, 1.f);
+    }
+    
+    return output;
+}
+
+float4 PSFullScreen(VS_FULLSCREEN_OUTPUT input) : SV_Target
+{
+    return gtxtTextureInputRO.Sample(gssPoint, input.uv);
+}

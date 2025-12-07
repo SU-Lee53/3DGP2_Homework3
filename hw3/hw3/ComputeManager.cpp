@@ -4,12 +4,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ComputeProgram
 
-void ComputeProgram::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
-{
-	pd3dCommandList->SetPipelineState(m_pd3dPipelineState.Get());
-	pd3dCommandList->Dispatch(m_xThreads, m_yThreads, m_zThreads);
-}
-
 void ComputeProgram::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT xThread, UINT yThreads, UINT zThreads)
 {
 	pd3dCommandList->SetPipelineState(m_pd3dPipelineState.Get());
@@ -76,7 +70,7 @@ ComputeManager::ComputeManager(ComPtr<ID3D12Device> pd3dDevice)
 	D3D12_DESCRIPTOR_HEAP_DESC d3dHeapDesc;
 	{
 		d3dHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		d3dHeapDesc.NumDescriptors = 4;
+		d3dHeapDesc.NumDescriptors = 4 + 1;		// Blur 에서 4개 + FullScreen 에서 1개
 		d3dHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		d3dHeapDesc.NodeMask = 0;
 	}
@@ -131,10 +125,11 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	UINT nClientWidth = GameFramework::g_nClientWidth;
 	UINT nClientHeight = GameFramework::g_nClientHeight;
 
-	CD3DX12_RESOURCE_BARRIER resourceBarriers[2];
-	resourceBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_BARRIER_FLAG_NONE);
-	resourceBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_BARRIER_FLAG_NONE);
-	pd3dCommandList->ResourceBarrier(2, resourceBarriers);
+	CD3DX12_RESOURCE_BARRIER resourceBarriers[3];
+	resourceBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	resourceBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	resourceBarriers[2] = CD3DX12_RESOURCE_BARRIER::Transition(m_pd3dCurrentBackBufferResource.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	pd3dCommandList->ResourceBarrier(3, resourceBarriers);
 
 	// Horizental Blur 수행
 	UINT nThreadX = std::ceil((float)nClientWidth / 256.f);
@@ -145,7 +140,7 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	descHandle.gpuHandle.ptr += 2 * GameFramework::g_uiDescriptorHandleIncrementSize;
 
 
-	pd3dCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_FLAG_NONE));
+	pd3dCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE));
 
 	// Vertical Blur 수행
 	pd3dCommandList->SetComputeRootDescriptorTable(0, descHandle.gpuHandle);
@@ -153,10 +148,11 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	nThreadY = std::ceil((float)nClientHeight / 256.f);
 	nThreadZ = 1;
 	pVertBlur->Dispatch(pd3dCommandList, nThreadX, nThreadY, nThreadZ);
+	descHandle.gpuHandle.ptr += 2 * GameFramework::g_uiDescriptorHandleIncrementSize;
 
-	pd3dCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_FLAG_NONE));
+	pd3dCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE));
 
-	CopyUAVToBackBuffer(pd3dCommandList);
+	CopyUAVToBackBuffer(pd3dCommandList, descHandle);
 
 }
 
@@ -256,13 +252,30 @@ void ComputeManager::CreateComputeRootSignature()
 	m_pd3dDevice->CreateRootSignature(0, pd3dSignatureBlob->GetBufferPointer(), pd3dSignatureBlob->GetBufferSize(), IID_PPV_ARGS(m_pd3dComputeRootSignature.GetAddressOf()));
 }
 
-void ComputeManager::CopyUAVToBackBuffer(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
+void ComputeManager::CopyUAVToBackBuffer(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& descHandle)
 {
+	D3D12_RESOURCE_BARRIER d3dResourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_pd3dCurrentBackBufferResource.Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	pd3dCommandList->ResourceBarrier(1, &d3dResourceBarrier);
+	pd3dCommandList->OMSetRenderTargets(1, &m_d3dBackBufferRTVCPUHandle, TRUE, &m_d3dDSVCPUHandle);
+
+	pd3dCommandList->SetGraphicsRootSignature(m_pd3dUAVToBackBufferRootSignature.Get());
+	pd3dCommandList->SetDescriptorHeaps(1, m_pd3dDescriptorHeap.GetAddressOf());
+
+	m_pd3dDevice->CopyDescriptorsSimple(1, descHandle.cpuHandle, m_pUAVTextures[1]->GetSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	descHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(0, descHandle.gpuHandle);
+	descHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+	
+	pd3dCommandList->SetPipelineState(m_pd3dUAVToBackBufferPipelineState.Get());
+	pd3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	pd3dCommandList->DrawInstanced(6, 1, 0, 0);
+
 }
 
 void ComputeManager::CreateGraphicsRootSignature()
 {
-	D3D12_DESCRIPTOR_RANGE d3dDescriptorRanges[2];
+	D3D12_DESCRIPTOR_RANGE d3dDescriptorRanges[1];
 
 	// Input : SRV
 	d3dDescriptorRanges[0].NumDescriptors = 1;
@@ -273,7 +286,7 @@ void ComputeManager::CreateGraphicsRootSignature()
 
 	D3D12_ROOT_PARAMETER d3dRootParameters[1];
 	d3dRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	d3dRootParameters[0].DescriptorTable.NumDescriptorRanges = 2;
+	d3dRootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
 	d3dRootParameters[0].DescriptorTable.pDescriptorRanges = &d3dDescriptorRanges[0];
 	d3dRootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -339,4 +352,23 @@ void ComputeManager::CreateGraphicsRootSignature()
 
 void ComputeManager::CreateGraphcisPipelineState()
 {
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC d3dPipelineDesc;
+	{
+		d3dPipelineDesc.pRootSignature = m_pd3dUAVToBackBufferRootSignature.Get();
+		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("FullScreenVS");
+		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("FullScreenPS");
+		d3dPipelineDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		d3dPipelineDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		d3dPipelineDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+		d3dPipelineDesc.InputLayout.NumElements = 0;
+		d3dPipelineDesc.InputLayout.pInputElementDescs = nullptr;
+		d3dPipelineDesc.SampleMask = UINT_MAX;
+		d3dPipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		d3dPipelineDesc.NumRenderTargets = 1;
+		d3dPipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		d3dPipelineDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		d3dPipelineDesc.SampleDesc.Count = 1;
+		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	}
+	m_pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dUAVToBackBufferPipelineState.GetAddressOf()));
 }

@@ -50,7 +50,7 @@ void FrameBuffer::CreateDescriptorHeaps(ComPtr<ID3D12Device> pd3dDevice, UINT nS
 void FrameBuffer::CreateViews(ComPtr<ID3D12Device> pd3dDevice, ComPtr<IDXGISwapChain> pdxgiSwapChain, UINT nSwapChainBuffers)
 {
 	D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVCPUDescriptorHandle = m_pd3dRTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVUAVCPUDescriptorHandle = m_pd3dSRVUAVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE d3dSRVUAVCPUDescriptorHandle = m_pd3dSRVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
 	m_pSwapChainBackBuffers.resize(nSwapChainBuffers);
 
