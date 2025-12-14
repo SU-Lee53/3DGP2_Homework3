@@ -5,7 +5,7 @@ IntroScene::IntroScene()
 {
 }
 
-void IntroScene::BuildDefaultLightsAndMaterials()
+void IntroScene::BuildDefaultLightsAndMaterials(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 {
 }
 
@@ -13,7 +13,7 @@ void IntroScene::BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Grap
 {
 	CreateRootSignature(pd3dDevice);
 	Material::PrepareShaders(pd3dDevice, m_pd3dRootSignature);
-	BuildDefaultLightsAndMaterials();
+	//BuildDefaultLightsAndMaterials(pd3dDevice, pd3dCommandList);
 
 	std::shared_ptr<AirplanePlayer> pAirplanePlayer = std::make_shared<AirplanePlayer>(pd3dDevice, pd3dCommandList, m_pd3dRootSignature);
 	std::shared_ptr<ThirdPersonCamera> pCamera = std::make_shared<ThirdPersonCamera>();

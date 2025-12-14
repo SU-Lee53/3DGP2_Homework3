@@ -48,6 +48,21 @@ void Mesh::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, int nSubSet
 	}
 }
 
+void Mesh::RenderOnShadowMaps(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, int nSubSet, int nInstanceCount)
+{
+	pd3dCommandList->IASetPrimitiveTopology(m_d3dPrimitiveTopology);
+	pd3dCommandList->IASetVertexBuffers(m_nSlot, 1, &m_d3dPositionBufferView);
+	if ((m_nSubMeshes > 0) && (nSubSet < m_nSubMeshes))
+	{
+		pd3dCommandList->IASetIndexBuffer(&(m_d3dSubSetIndexBufferViews[nSubSet]));
+		pd3dCommandList->DrawIndexedInstanced(m_nSubSetIndices[nSubSet], nInstanceCount, 0, 0, 0);
+	}
+	else
+	{
+		pd3dCommandList->DrawInstanced(m_nVertices, nInstanceCount, m_nOffset, 0);
+	}
+}
+
 //////////////////
 // StandardMesh //
 //////////////////
@@ -498,14 +513,13 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 #ifdef TERRAIN_TESSELLATION
 	int nControlPointPerEdge = 2;
 	m_nVertices = nControlPointPerEdge * nControlPointPerEdge;
-	m_d3dPrimitiveTopology = (D3D12_PRIMITIVE_TOPOLOGY)(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + m_nVertices - 1);	// 4x4 Quad 패치
+	m_d3dPrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;	// 4x4 Quad 패치
 
 #else
 	m_nVertices = nWidth * nLength;
 	m_d3dPrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
 
 #endif
-
 	m_xmf3Positions.resize(m_nVertices);
 	m_xmf4Colors.resize(m_nVertices);
 	m_xmf2TextureCoords0.resize(m_nVertices);
@@ -520,34 +534,6 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 	float fPosX = xStart;
 	float fPosZ = (zStart + m_nLength - 1);
 
-	//	fHeight = GetHeight(fPosX, fPosZ, pHeightMap);
-	//	m_xmf3Positions[0]		= XMFLOAT3((fPosX * m_xmf3Scale.x), fHeight, (fPosZ * m_xmf3Scale.z));
-	//	m_xmf4Colors[0]			= Vector4::Add(GetColor(fPosX, fPosZ, pHeightMap), xmf4Color);
-	//	m_xmf2TextureCoords0[0] = XMFLOAT2(float(fPosX) / float(cxHeightMap - 1), float(czHeightMap - 1 - fPosZ) / float(czHeightMap - 1));
-	//	m_xmf2TextureCoords1[0] = XMFLOAT2(float(fPosX) / float(m_xmf3Scale.x * 0.5f), float(fPosZ) / float(m_xmf3Scale.z * 0.5f));
-	//	
-	//	fPosX += 12;
-	//	fHeight = GetHeight(fPosX, fPosZ, pHeightMap);
-	//	m_xmf3Positions[1]		= XMFLOAT3((fPosX * m_xmf3Scale.x), fHeight, (fPosZ * m_xmf3Scale.z));
-	//	m_xmf4Colors[1]			= Vector4::Add(GetColor(fPosX, fPosZ, pHeightMap), xmf4Color);
-	//	m_xmf2TextureCoords0[1] = XMFLOAT2(float(fPosX) / float(cxHeightMap - 1), float(czHeightMap - 1 - fPosZ) / float(czHeightMap - 1));
-	//	m_xmf2TextureCoords1[1] = XMFLOAT2(float(fPosX) / float(m_xmf3Scale.x * 0.5f), float(fPosZ) / float(m_xmf3Scale.z * 0.5f));
-	//	
-	//	fPosX = xStart;
-	//	fPosZ -= 12;
-	//	fHeight = GetHeight(fPosX, fPosZ, pHeightMap);
-	//	m_xmf3Positions[2]		= XMFLOAT3((fPosX * m_xmf3Scale.x), fHeight, (fPosZ * m_xmf3Scale.z));
-	//	m_xmf4Colors[2]			= Vector4::Add(GetColor(fPosX, fPosZ, pHeightMap), xmf4Color);
-	//	m_xmf2TextureCoords0[2] = XMFLOAT2(float(fPosX) / float(cxHeightMap - 1), float(czHeightMap - 1 - fPosZ) / float(czHeightMap - 1));
-	//	m_xmf2TextureCoords1[2] = XMFLOAT2(float(fPosX) / float(m_xmf3Scale.x * 0.5f), float(fPosZ) / float(m_xmf3Scale.z * 0.5f));
-	//	
-	//	fPosX += 12;
-	//	fHeight = GetHeight(fPosX, fPosZ, pHeightMap);
-	//	m_xmf3Positions[3]		= XMFLOAT3((fPosX * m_xmf3Scale.x), fHeight, (fPosZ * m_xmf3Scale.z));
-	//	m_xmf4Colors[3]			= Vector4::Add(GetColor(fPosX, fPosZ, pHeightMap), xmf4Color);
-	//	m_xmf2TextureCoords0[3] = XMFLOAT2(float(fPosX) / float(cxHeightMap - 1), float(czHeightMap - 1 - fPosZ) / float(czHeightMap - 1));
-	//	m_xmf2TextureCoords1[3] = XMFLOAT2(float(fPosX) / float(m_xmf3Scale.x * 0.5f), float(fPosZ) / float(m_xmf3Scale.z * 0.5f));
-
 	for (int i = 0, z = (zStart + m_nLength - 1); z >= zStart; z -= nIncrementZ) {
 		for (int x = xStart; x < (xStart + m_nWidth); x += nIncrementX, i++) {
 			fHeight = GetHeight(x, z, pHeightMap);
@@ -559,6 +545,8 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 			if (fHeight > fMaxHeight) fMaxHeight = fHeight;
 		}
 	}
+
+	BoundingOrientedBox::CreateFromPoints(m_xmOBB, m_xmf3Positions.size(), m_xmf3Positions.data(), sizeof(XMFLOAT3));
 
 #else
 	for (int i = 0, z = zStart; z < (zStart + nLength); z++)

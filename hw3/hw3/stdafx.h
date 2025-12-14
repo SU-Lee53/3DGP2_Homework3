@@ -96,6 +96,13 @@ struct ConstantBufferSize {
 // Math // 
 //////////
 
+inline const XMFLOAT4X4 g_xmf4x4ToTexture = XMFLOAT4X4{
+	0.5f, 0.0f, 0.0f, 0.0f,
+	0.0f, -0.5f, 0.0f, 0.0f,
+	0.0f, 0.0f, 1.0f, 0.0f,
+	0.5f, 0.5f, 0.0f, 1.0f
+};
+
 #define EPSILON					1.0e-10f
 
 inline bool IsZero(float fValue) { return((fabsf(fValue) < EPSILON)); }

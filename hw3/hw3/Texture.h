@@ -7,7 +7,7 @@ enum RESOURCE_TYPE : UINT {
 	RESOURCE_TYPE_TEXTURE_CUBE		= 0x04,
 	RESOURCE_TYPE_BUFFER			= 0x05,
 
-	RESOURCE_TYPE_RWTEXTURE2D		= 0x06
+	RESOURCE_TYPE_RWTEXTURE2D		= 0x06,
 };
 
 class Texture : public std::enable_shared_from_this<Texture> {
@@ -26,11 +26,13 @@ private:
 		const std::wstring& wstrPath, std::unique_ptr<uint8_t[]>& ddsData, std::vector<D3D12_SUBRESOURCE_DATA>& subResources);
 
 	void CreateUAVTexture(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT nWidth, UINT nHeight);
+	void CreateShadowMap(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT nWidth, UINT nHeight);
 
 public:
 	ComPtr<ID3D12Resource> GetTexResource() const { return m_pd3dTextureResource; }
 	D3D12_CPU_DESCRIPTOR_HANDLE GetSRVCPUHandle() const { return m_SRVCPUDescriptorHandle; }
 	D3D12_CPU_DESCRIPTOR_HANDLE GetUAVCPUHandle() const { return m_UAVCPUDescriptorHandle; }
+	D3D12_CPU_DESCRIPTOR_HANDLE GetDSVCPUHandle() const { return m_DSVCPUDescriptorHandle; }
 
 public:
 	D3D12_SHADER_RESOURCE_VIEW_DESC GetSRVDesc() const;
@@ -49,6 +51,7 @@ private:
 
 	D3D12_CPU_DESCRIPTOR_HANDLE				m_SRVCPUDescriptorHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE				m_UAVCPUDescriptorHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE				m_DSVCPUDescriptorHandle;
 
 	bool									m_bTransparent = false;
 
@@ -57,4 +60,3 @@ public:
 	friend class TextureManager;
 
 };
-

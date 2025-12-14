@@ -128,7 +128,7 @@ void TerrainObject::Initialize(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Gra
 	m_nWidth = nWidth;
 	m_nLength = nLength;
 	m_xmf3Scale = xmf3Scale;
-	m_pHeightMapImage = make_shared<HeightMapRawImage>(strFileName, nWidth, nLength, xmf3Scale);
+	m_pHeightMapRawImage = make_shared<HeightMapRawImage>(strFileName, nWidth, nLength, xmf3Scale);
 
 	int cxQuadsPerBlock = nBlockWidth - 1;
 	int czQuadsPerBlock = nBlockLength - 1;
@@ -146,10 +146,11 @@ void TerrainObject::Initialize(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Gra
 
 			pHeightMapGridMesh = make_shared<TerrainMesh>();
 			pHeightMapGridMesh->Create(pd3dDevice, pd3dCommandList,
-				xStart, zStart, nBlockWidth, nBlockLength, xmf3Scale, xmf4Color, m_pHeightMapImage);
+				xStart, zStart, nBlockWidth, nBlockLength, xmf3Scale, xmf4Color, m_pHeightMapRawImage);
 			m_pTerrainMeshes[x + (z * cxBlocks)] = pHeightMapGridMesh;
 		}
 	}
+	m_bUseHeightMap = TRUE;
 
 	XMStoreFloat4(&m_xmf4MapBoundaryPlanes[0], XMPlaneFromPointNormal(XMVectorSet(0.f, 0.f, 0.f, 1.f), XMVectorSet(1.f, 0.f, 0.f, 0.f)));
 	XMStoreFloat4(&m_xmf4MapBoundaryPlanes[1], XMPlaneFromPointNormal(XMVectorSet((GetWidth() * 0.5f), 0.f, 0.f, 1.f), XMVectorSet(-1.f, 0.f, 0.f, 0.f)));
@@ -163,6 +164,9 @@ void TerrainObject::Initialize(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Gra
 
 	std::shared_ptr<Texture> pBaseTexture = TEXTURE->LoadTexture(pd3dCommandList, "TerrainBase", L"Terrain/Base_Texture.dds", RESOURCE_TYPE_TEXTURE2D);
 	std::shared_ptr<Texture> pDetailedTexture = TEXTURE->LoadTexture(pd3dCommandList, "TerrainDetailed", L"Terrain/Detail_Texture_7.dds", RESOURCE_TYPE_TEXTURE2D);
+
+	// Terrain Height Map
+	m_pHeightMapTexture = TEXTURE->LoadTexture(pd3dCommandList, "TerrainHeight", L"Terrain/HeightMap.png", RESOURCE_TYPE_TEXTURE2D);
 
 	std::shared_ptr<Material> pTerrainMaterial = std::make_shared<Material>(pd3dDevice, pd3dCommandList);
 	pTerrainMaterial->SetTexture(TEXTURE_INDEX_ALBEDO_MAP, pBaseTexture);
@@ -210,6 +214,7 @@ void TerrainObject::CreateChildWaterGridObject(ComPtr<ID3D12Device> pd3dDevice, 
 			pWaterGridObject->m_pTerrainMeshes[x + (z * cxBlocks)] = pHeightMapGridMesh;
 		}
 	}
+	pWaterGridObject->m_bUseHeightMap = FALSE;
 
 	std::shared_ptr<Texture> pBaseTexture = TEXTURE->LoadTexture(pd3dCommandList, "WaterBase", L"Terrain/Water_Base_Texture_0.dds", RESOURCE_TYPE_TEXTURE2D);
 	std::shared_ptr<Texture> pDetailedTexture = TEXTURE->LoadTexture(pd3dCommandList, "WaterDetailed", L"Terrain/Water_Detail_Texture_0.dds", RESOURCE_TYPE_TEXTURE2D);
@@ -294,6 +299,8 @@ void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graphic
 		{
 			XMStoreFloat4x4(&terrainData.xmf4x4TerrainWorld, XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
 			terrainData.xmf2UVTranslation = m_xmf2UVTranslation;
+			terrainData.xmf3TerrainScale = m_xmf3Scale;
+			terrainData.bTerrainUseHeightMap = m_bUseHeightMap;
 		}
 		m_TerrainCBuffer.UpdateData(&terrainData);
 
@@ -337,17 +344,33 @@ void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graphic
 		refDescHandle.gpuHandle.ptr += (2 + Material::g_nTexturesPerMaterial) * GameFramework::g_uiDescriptorHandleIncrementSize;
 		// 2 (CB_MATERIAL_DATA, World) + Texture 7°³ 
 
+		if (m_bUseHeightMap) {
+			pd3dDevice->CopyDescriptorsSimple(1, refDescHandle.cpuHandle, m_pHeightMapTexture->GetSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			pd3dCommandList->SetGraphicsRootDescriptorTable(9, refDescHandle.gpuHandle);
+
+			refDescHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+			refDescHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+		}
+
 		float pfBlendFactor[4] = { m_fBlendFactor,m_fBlendFactor,m_fBlendFactor,m_fBlendFactor };
 		pd3dCommandList->OMSetBlendFactor(pfBlendFactor);
 	}
 
-	volatile size_t pMeshCount = m_pTerrainMeshes.size();
+	size_t pMeshCount = m_pTerrainMeshes.size();
 
+
+	auto xmCameraFrustum = CUR_SCENE->GetCamera()->GetFrustum();
 	if (pMeshCount >= 1)
 	{
 		for (int i = 0; i < pMeshCount; i++)
 		{
-			if (m_pTerrainMeshes[i]) m_pTerrainMeshes[i]->Render(pd3dCommandList, 0);
+			if (m_pTerrainMeshes[i]) {
+				BoundingOrientedBox xmTerrainOBBInWorld;
+				m_pTerrainMeshes[i]->GetOBBOrigin().Transform(xmTerrainOBBInWorld, XMLoadFloat4x4(&m_xmf4x4World));
+				if (xmCameraFrustum.Intersects(xmTerrainOBBInWorld)) {
+					m_pTerrainMeshes[i]->Render(pd3dCommandList, 0);
+				}
+			}
 		}
 	}
 
@@ -386,6 +409,8 @@ void TerrainObject::RenderOnMirror(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D1
 		{
 			XMStoreFloat4x4(&terrainData.xmf4x4TerrainWorld, XMMatrixTranspose(XMMatrixMultiply(XMLoadFloat4x4(&m_xmf4x4World), xmmtxReflect)));
 			terrainData.xmf2UVTranslation = m_xmf2UVTranslation;
+			terrainData.xmf3TerrainScale = m_xmf3Scale;
+			terrainData.bTerrainUseHeightMap = m_bUseHeightMap;
 		}
 		m_TerrainOnMirrorCBuffer.UpdateData(&terrainData);
 
@@ -509,7 +534,7 @@ float TerrainObject::GetHeight(float x, float z, bool bReverseQuad)
 		return 0.f;
 	}
 
-	return m_pHeightMapImage->GetHeight(x, z, bReverseQuad) * m_xmf3Scale.y; 
+	return m_pHeightMapRawImage->GetHeight(x, z, bReverseQuad) * m_xmf3Scale.y; 
 }
 
 void TerrainObject::SetWireframeMode(bool bMode) 

@@ -5,7 +5,7 @@ public:
 	GameScene();
 
 public:
-	virtual void BuildDefaultLightsAndMaterials() override;
+	virtual void BuildDefaultLightsAndMaterials(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList) override;
 	virtual void BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList) override;
 	virtual void ReleaseUploadBuffers()override;
 

@@ -27,10 +27,13 @@ public:
 
 
 	void GenerateViewMatrix();
-	void GenerateViewMatrix(XMFLOAT3 xmf3Position, XMFLOAT3 xmf3LookAt, XMFLOAT3 xmf3Up);
+	void GenerateViewMatrix(const XMFLOAT3& xmf3Position, const XMFLOAT3& xmf3LookAt, const XMFLOAT3& xmf3Up);
 	void RegenerateViewMatrix();
 
+	void GenerateViewMatrixLookTo(const XMFLOAT3& xmf3LookTo);
+
 	void GenerateProjectionMatrix(float fNearPlaneDistance, float fFarPlaneDistance, float fAspectRatio, float fFOVAngle);
+	void GenerateOrthoGraphicProjectionMatrix(float fWidth, float fHeight, float fNear, float fFar);
 
 	void SetViewport(int xTopLeft, int yTopLeft, int nWidth, int nHeight, float fMinZ = 0.0f, float fMaxZ = 1.0f);
 	void SetScissorRect(LONG xLeft, LONG yTop, LONG xRight, LONG yBottom);

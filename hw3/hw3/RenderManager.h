@@ -55,11 +55,17 @@ public:
 	ComPtr<ID3D12DescriptorHeap> GetDescriptorHeap() { return m_pd3dDescriptorHeap; }
 	void SetDescriptorHeapToPipeline(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList) const;
 
+	// 과제 3
+	void SetCurrentBackBufferHandle(D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVHandle, D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVHandle);
+
 public:
 	void RenderObjectsInMirrorWorld(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle, 
 		const XMFLOAT4& xmf4MirrorPlane, ComPtr<ID3D12PipelineState> pd3dObjectsOnMirrorPipelineState, ComPtr<ID3D12PipelineState> pd3dTerrainOnMirrorPipelineState, ComPtr<ID3D12PipelineState> pd3dBillboardsOnMirrorPipelineState);
 
 private:
+	// 과제 3
+	void GenerateShadowMaps(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle);
+
 	void RenderObjects(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle);
 	void RenderTerrain(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle);
 	void RenderMirrors(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle);
@@ -98,6 +104,13 @@ private:
 	ConstantBuffer					m_LightOnMirrorCBuffer;
 
 	UINT m_nDrawCalls = 0;
+
+private:
+	// Shadow maps
+	std::array<std::shared_ptr<Texture>, 2>		m_pShadowMapDepthBuffer;
+	std::shared_ptr<ShadowMapShader>			m_pShadowMapShader = nullptr;
+	D3D12_CPU_DESCRIPTOR_HANDLE					m_d3dCurrentBackBufferRTVHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE					m_d3dFrameworkDSVHandle;
 
 public:
 	static ComPtr<ID3D12RootSignature> g_pd3dRootSignature;

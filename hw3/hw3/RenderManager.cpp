@@ -31,6 +31,11 @@ RenderManager::RenderManager(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 	m_DescriptorHandle.cpuHandle = m_pd3dDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	m_DescriptorHandle.gpuHandle = m_pd3dDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 
+	// [0] = Spot Light
+	// [1] = Directional Light
+	m_pShadowMapDepthBuffer[0] = TEXTURE->CreateShadowMap(pd3dCommandList, SPOT_SHADOW_MAP_SIZE);
+	m_pShadowMapDepthBuffer[1] = TEXTURE->CreateShadowMap(pd3dCommandList, DIRECTIONAL_SHADOW_MAP_SIZE);
+
 	CreateGlobalRootSignature(pd3dDevice);
 }
 
@@ -56,7 +61,6 @@ void RenderManager::Add(std::shared_ptr<GameObject> pGameObject)
 
 void RenderManager::AddMirror(std::shared_ptr<MirrorObject> pMirrorObject)
 {
-	// TODO : Make it Happen
 	m_pMirrorObjects.push_back(pMirrorObject);
 }
 
@@ -67,24 +71,16 @@ void RenderManager::AddTransparent(std::shared_ptr<GameObject> pGameObject)
 
 void RenderManager::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 {
+	if (!m_pShadowMapShader) {
+		m_pShadowMapShader = SHADER->Get<ShadowMapShader>();
+	}
+
 	pd3dCommandList->SetGraphicsRootSignature(g_pd3dRootSignature.Get());
 	pd3dCommandList->SetDescriptorHeaps(1, m_pd3dDescriptorHeap.GetAddressOf());
 	CUR_SCENE->UpdateShaderVariable(pd3dCommandList);
 	CUR_SCENE->GetLightCBuffer().SetBufferToPipeline(pd3dCommandList, 7);
 	
 	DescriptorHandle descHandle = m_DescriptorHandle;
-
-	// Per Scene Descriptor 에 복사
-	auto pCamera = CUR_SCENE->GetPlayer()->GetCamera();
-	pCamera->UpdateShaderVariables(pd3dCommandList);
-	pCamera->SetViewportsAndScissorRects(pd3dCommandList);
-
-	m_pd3dDevice->CopyDescriptorsSimple(1, descHandle.cpuHandle,
-		pCamera->GetCBuffer().GetCPUDescriptorHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	descHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
-
-	pd3dCommandList->SetGraphicsRootDescriptorTable(0, descHandle.gpuHandle);
-	descHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
 
 	// Skybox 추가 필요
 	if (CUR_SCENE->GetSkyboxTexture()) {
@@ -98,7 +94,6 @@ void RenderManager::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 		descHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
 		descHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
 	}
-
 
 	RenderObjects(pd3dCommandList, descHandle);
 
@@ -116,11 +111,78 @@ void RenderManager::Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	CUR_SCENE->GetLightCBuffer().SetBufferToPipeline(pd3dCommandList, 7);
 
 	RenderTransparent(pd3dCommandList, descHandle);
+
+	// Shadow Map 의 Resource state 를 되돌려놓음
+	CD3DX12_RESOURCE_BARRIER d3dResourceBarrier[2];
+	d3dResourceBarrier[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_pShadowMapDepthBuffer[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	d3dResourceBarrier[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_pShadowMapDepthBuffer[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+
+	pd3dCommandList->ResourceBarrier(2, d3dResourceBarrier);
 }
 
 void RenderManager::SetDescriptorHeapToPipeline(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList) const
 {
 	pd3dCommandList->SetDescriptorHeaps(1, m_pd3dDescriptorHeap.GetAddressOf());
+}
+
+void RenderManager::GenerateShadowMaps(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle)
+{
+	m_pShadowMapShader->OnPrepareRender(pd3dCommandList);
+
+	// [0] = Spot Light
+	// [1] = Directional Light
+	UINT nDepthBufferIndex = 0;
+	auto& pLights = CUR_SCENE->GetLights();
+	for (const auto& pLight : pLights) {
+		// SetRenderTargets 에 Depth Buffer 만 Set
+		D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVHandle = m_pShadowMapDepthBuffer[nDepthBufferIndex]->GetDSVCPUHandle();
+		pd3dCommandList->ClearDepthStencilView(d3dDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0, 0, NULL);
+		pd3dCommandList->OMSetRenderTargets(0, nullptr, FALSE, &d3dDSVHandle);
+
+		// Light 의 카메라 정보 기입
+		pLight->UpdateShaderVariables();
+		pLight->SetViewportsAndScissorRects(pd3dCommandList);
+		m_pd3dDevice->CopyDescriptorsSimple(1, refDescHandle.cpuHandle,
+			pLight->GetCBuffer().GetCPUDescriptorHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		pd3dCommandList->SetGraphicsRootDescriptorTable(0, refDescHandle.gpuHandle);
+
+		refDescHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+		refDescHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+
+		int nInstanceBase = 0;
+		int nInstanceCount = 0;
+		for (auto& [instanceKey, instanceData] : m_InstanceDatas) {
+			nInstanceCount = instanceData.size();
+
+			for (int i = 0; i < instanceKey.pMaterials.size(); ++i) {
+				pd3dCommandList->SetGraphicsRoot32BitConstant(5, nInstanceBase, 0);
+				instanceKey.pMesh->RenderOnShadowMaps(pd3dCommandList, i, nInstanceCount);
+			}
+
+			nInstanceBase += nInstanceCount;
+		}
+
+		nDepthBufferIndex++;
+	}
+
+	// Resource state 전환 필요
+	CD3DX12_RESOURCE_BARRIER d3dResourceBarrier[2];
+	d3dResourceBarrier[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_pShadowMapDepthBuffer[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	d3dResourceBarrier[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_pShadowMapDepthBuffer[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	pd3dCommandList->ResourceBarrier(2, d3dResourceBarrier);
+
+
+	m_pd3dDevice->CopyDescriptorsSimple(2, refDescHandle.cpuHandle, m_pShadowMapDepthBuffer[0]->GetSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	refDescHandle.cpuHandle.ptr += 15 * GameFramework::g_uiDescriptorHandleIncrementSize;
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(8, refDescHandle.gpuHandle);
+	refDescHandle.gpuHandle.ptr += 15 * GameFramework::g_uiDescriptorHandleIncrementSize;
+}
+
+void RenderManager::SetCurrentBackBufferHandle(D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVHandle, D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVHandle)
+{
+	m_d3dCurrentBackBufferRTVHandle = d3dRTVHandle;
+	m_d3dFrameworkDSVHandle = d3dDSVHandle;
 }
 
 void RenderManager::RenderObjects(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle)
@@ -141,6 +203,25 @@ void RenderManager::RenderObjects(ComPtr<ID3D12GraphicsCommandList> pd3dCommandL
 
 	pd3dCommandList->SetGraphicsRootDescriptorTable(3, refDescHandle.gpuHandle);
 	refDescHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+
+	// 인스턴스 월드 행렬까지 넣고 Shadow Map 생성
+	GenerateShadowMaps(pd3dCommandList, refDescHandle);
+
+	// Render Target 원상복구
+	pd3dCommandList->OMSetRenderTargets(1, &m_d3dCurrentBackBufferRTVHandle, TRUE, &m_d3dFrameworkDSVHandle);
+
+	// Scene 의 카메라 정보 기입
+	auto pCamera = CUR_SCENE->GetPlayer()->GetCamera();
+	pCamera->UpdateShaderVariables(pd3dCommandList);
+	pCamera->SetViewportsAndScissorRects(pd3dCommandList);
+
+	m_pd3dDevice->CopyDescriptorsSimple(1, refDescHandle.cpuHandle,
+		pCamera->GetCBuffer().GetCPUDescriptorHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	refDescHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(0, refDescHandle.gpuHandle);
+	refDescHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+
 
 	int nInstanceBase = 0;
 	int nInstanceCount = 0;
@@ -356,7 +437,7 @@ void RenderManager::CreateGlobalRootSignature(ComPtr<ID3D12Device> pd3dDevice)
 	// 계획 수정 -> 조명은 Descriptor 로 사용 (기존 DescriptorTable)
 
 
-	CD3DX12_DESCRIPTOR_RANGE d3dDescriptorRanges[8];
+	CD3DX12_DESCRIPTOR_RANGE d3dDescriptorRanges[10];
 	d3dDescriptorRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, 0);	// b1 : Camera, Lights
 	d3dDescriptorRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, 0);	// t0 : Skybox
 
@@ -369,8 +450,17 @@ void RenderManager::CreateGlobalRootSignature(ComPtr<ID3D12Device> pd3dDevice)
 	d3dDescriptorRanges[6].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2, 4, 0, 0);	// b4 : Material, StructuredBuffer 에서 World 행렬의 위치(Base) + b5 World 행렬 (인스턴싱 안하는 경우(Mirror))
 	d3dDescriptorRanges[7].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7, 5, 0, 2);	// t5 ~ t11 : 각각 albedo, specular, normal, metallic, emission, detail albedo, detail normal
 
+	d3dDescriptorRanges[7].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 7, 5, 0, 2);	// t5 ~ t11 : 각각 albedo, specular, normal, metallic, emission, detail albedo, detail normal
 
-	CD3DX12_ROOT_PARAMETER d3dRootParameters[8];
+	// Shadow
+	d3dDescriptorRanges[8].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, MAX_LIGHTS, 12, 0, 0); // t12 ~ t27
+
+	// Terrain HeightMap
+	d3dDescriptorRanges[9].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 28, 0, 0); // t28
+
+
+
+	CD3DX12_ROOT_PARAMETER d3dRootParameters[10];
 	{
 		// Per Scene
 		d3dRootParameters[0].InitAsDescriptorTable(1, &d3dDescriptorRanges[0], D3D12_SHADER_VISIBILITY_ALL);	// b1
@@ -394,11 +484,16 @@ void RenderManager::CreateGlobalRootSignature(ComPtr<ID3D12Device> pd3dDevice)
 		// Lights
 		d3dRootParameters[7].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);	// b0
 
+		// Shadow Maps
+		d3dRootParameters[8].InitAsDescriptorTable(1, &d3dDescriptorRanges[8], D3D12_SHADER_VISIBILITY_ALL);
+
+		// Terrain HeightMap
+		d3dRootParameters[9].InitAsDescriptorTable(1, &d3dDescriptorRanges[9], D3D12_SHADER_VISIBILITY_ALL);
 	}
 
-	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;// D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-	D3D12_STATIC_SAMPLER_DESC d3dSamplerDescs[2];
+	D3D12_STATIC_SAMPLER_DESC d3dSamplerDescs[3];
 	d3dSamplerDescs[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	d3dSamplerDescs[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	d3dSamplerDescs[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -410,7 +505,7 @@ void RenderManager::CreateGlobalRootSignature(ComPtr<ID3D12Device> pd3dDevice)
 	d3dSamplerDescs[0].MaxLOD = D3D12_FLOAT32_MAX;
 	d3dSamplerDescs[0].ShaderRegister = 0;
 	d3dSamplerDescs[0].RegisterSpace = 0;
-	d3dSamplerDescs[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	d3dSamplerDescs[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 	d3dSamplerDescs[1].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	d3dSamplerDescs[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -423,7 +518,21 @@ void RenderManager::CreateGlobalRootSignature(ComPtr<ID3D12Device> pd3dDevice)
 	d3dSamplerDescs[1].MaxLOD = D3D12_FLOAT32_MAX;
 	d3dSamplerDescs[1].ShaderRegister = 1;
 	d3dSamplerDescs[1].RegisterSpace = 0;
-	d3dSamplerDescs[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	d3dSamplerDescs[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	d3dSamplerDescs[2].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	d3dSamplerDescs[2].AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	d3dSamplerDescs[2].AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	d3dSamplerDescs[2].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	d3dSamplerDescs[2].MipLODBias = 0.0f;
+	d3dSamplerDescs[2].MaxAnisotropy = 1;
+	d3dSamplerDescs[2].ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	d3dSamplerDescs[2].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+	d3dSamplerDescs[2].MinLOD = 0;
+	d3dSamplerDescs[2].MaxLOD = D3D12_FLOAT32_MAX;
+	d3dSamplerDescs[2].ShaderRegister = 2;
+	d3dSamplerDescs[2].RegisterSpace = 0;
+	d3dSamplerDescs[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 
 	D3D12_ROOT_SIGNATURE_DESC d3dRootSignatureDesc{};

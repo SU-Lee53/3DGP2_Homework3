@@ -80,7 +80,7 @@ void Camera::GenerateViewMatrix()
 	m_xmf4x4View = Matrix4x4::LookAtLH(m_xmf3Position, m_xmf3LookAtWorld, m_xmf3Up);
 }
 
-void Camera::GenerateViewMatrix(XMFLOAT3 xmf3Position, XMFLOAT3 xmf3LookAt, XMFLOAT3 xmf3Up)
+void Camera::GenerateViewMatrix(const XMFLOAT3& xmf3Position, const XMFLOAT3& xmf3LookAt, const XMFLOAT3& xmf3Up)
 {
 	m_xmf3Position = xmf3Position;
 	m_xmf3LookAtWorld = xmf3LookAt;
@@ -112,11 +112,21 @@ void Camera::RegenerateViewMatrix()
 	m_xmFrustumView.Transform(m_xmFrustumWorld, XMLoadFloat4x4(&m_xmf4x4InverseView));
 }
 
+void Camera::GenerateViewMatrixLookTo(const XMFLOAT3& xmf3LookTo)
+{
+	m_xmf4x4View = Matrix4x4::LookAtLH(m_xmf3Position, xmf3LookTo, m_xmf3Up);
+}
+
 void Camera::GenerateProjectionMatrix(float fNearPlaneDistance, float fFarPlaneDistance, float fAspectRatio, float fFOVAngle)
 {
 	m_xmf4x4Projection = Matrix4x4::PerspectiveFovLH(XMConvertToRadians(fFOVAngle), fAspectRatio, fNearPlaneDistance, fFarPlaneDistance);
 
 	BoundingFrustum::CreateFromMatrix(m_xmFrustumView, XMLoadFloat4x4(&m_xmf4x4Projection));
+}
+
+void Camera::GenerateOrthoGraphicProjectionMatrix(float fWidth, float fHeight, float fNear, float fFar)
+{
+	XMStoreFloat4x4(&m_xmf4x4Projection, XMMatrixOrthographicLH(fWidth, fHeight, fNear, fFar));
 }
 
 void Camera::SetViewport(int xTopLeft, int yTopLeft, int nWidth, int nHeight, float fMinZ, float fMaxZ)

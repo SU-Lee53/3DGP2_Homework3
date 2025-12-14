@@ -3,7 +3,7 @@
 #include "Player.h"
 #include "Sprite.h"
 
-#define MAX_LIGHTS 16
+#define MAX_LIGHTS 15
 
 class TerrainObject;
 
@@ -19,7 +19,7 @@ public:
 	Scene();
 
 public:
-	virtual void BuildDefaultLightsAndMaterials();
+	virtual void BuildDefaultLightsAndMaterials(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);
 	virtual void BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);
 	virtual void ReleaseUploadBuffers();
 
@@ -40,6 +40,7 @@ public:
 	virtual bool OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
 	virtual bool OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
 
+	const std::vector<std::shared_ptr<Light>>& GetLights() const { return m_pLights; }
 	const ConstantBuffer& GetLightCBuffer() const { return m_LightCBuffer; }
 
 public:
@@ -60,6 +61,9 @@ public:
 	std::shared_ptr<Texture> GetSkyboxTexture() { return m_pSkyboxTexture; }
 
 	void SetTerrainWireframeMode(bool bMode);
+	
+	void GenerateSceneBoundingBox();
+	const BoundingBox& GetBoundingBox() const { return m_xmAABBScene; }
 
 protected:
 	std::shared_ptr<Player>						m_pPlayer;
@@ -74,6 +78,8 @@ protected:
 	XMFLOAT4									m_xmf4GlobalAmbient;
 
 	ConstantBuffer								m_LightCBuffer;
+
+	BoundingBox									m_xmAABBScene{};
 
 protected:
 	ComPtr<ID3D12RootSignature> m_pd3dRootSignature;

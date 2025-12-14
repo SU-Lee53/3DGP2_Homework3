@@ -58,6 +58,7 @@ protected:
 public:
 	virtual void Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList) {}
 	virtual void Render(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, int nSubSet, int nInstanceCount = 1);
+	void RenderOnShadowMaps(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, int nSubSet, int nInstanceCount = 1);
 };
 
 class StandardMesh : public Mesh {

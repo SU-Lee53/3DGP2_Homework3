@@ -99,6 +99,7 @@ GameFramework::GameFramework(HINSTANCE hInstance, HWND hWnd, UINT uiWidth, UINT 
 	CreateRtvAndDsvDescriptorHeaps();
 	CreateSwapChain();
 	CreateDepthStencilView();
+	g_uiDescriptorHandleIncrementSize = m_pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	m_d3dViewport = { 0.f, 0.f, (float)g_nClientWidth, (float)g_nClientHeight, 0.f, 1.f };
 	m_d3dScissorRect = { 0, 0, (LONG)g_nClientWidth, (LONG)g_nClientHeight };
@@ -107,8 +108,9 @@ GameFramework::GameFramework(HINSTANCE hInstance, HWND hWnd, UINT uiWidth, UINT 
 
 	g_pResourceManager = std::make_unique<ResourceManager>();
 	g_pTextureManager = std::make_unique<TextureManager>(m_pd3dDevice);
-	g_pRenderManager = std::make_unique<RenderManager>(m_pd3dDevice, m_pd3dCommandList);
 	g_pShaderManager = std::make_unique<ShaderManager>(m_pd3dDevice);
+
+	g_pRenderManager = std::make_unique<RenderManager>(m_pd3dDevice, m_pd3dCommandList);
 	g_pEffectManager = std::make_unique<EffectManager>();
 	g_pComputeManager = std::make_unique<ComputeManager>();
 	g_pShaderManager->Initialize();
@@ -133,7 +135,7 @@ void GameFramework::BuildObjects()
 	{
 		g_pTextureManager->LoadGameTextures(m_pd3dCommandList);
 		g_pEffectManager->Initialize(m_pd3dDevice, m_pd3dCommandList);
-		g_pComputeManager->Initialize(m_pd3dDevice);
+		g_pComputeManager->Initialize(m_pd3dDevice, m_pd3dCommandList);
 
 		std::shared_ptr<IntroScene> pIntroScene = std::make_shared<IntroScene>();
 		pIntroScene->BuildObjects(m_pd3dDevice, m_pd3dCommandList);
@@ -186,8 +188,9 @@ void GameFramework::Render()
 	RENDER->Clear();
 	UI->Clear();
 
-	D3D12_CPU_DESCRIPTOR_HANDLE d3dDsvCPUDescriptorHandle = m_pd3dDsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	COMPUTE->SetBackBuffer(m_FrameBuffers.GetFrameBufferResources(m_nSwapChainBufferIndex), d3dDsvCPUDescriptorHandle);
+	D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVCPUDescriptorHandle = m_pd3dDsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	RENDER->SetCurrentBackBufferHandle(m_FrameBuffers.GetBackBufferRTVCPUHandle(m_nSwapChainBufferIndex), d3dDSVCPUDescriptorHandle);
+	COMPUTE->SetBackBuffer(m_FrameBuffers.GetFrameBufferResources(m_nSwapChainBufferIndex), d3dDSVCPUDescriptorHandle);
 
 
 	RenderBegin();

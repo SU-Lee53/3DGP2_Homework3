@@ -817,7 +817,6 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 
 D3D12_INPUT_LAYOUT_DESC TerrainShader::CreateInputLayout()
 {
-
 	/*
 	typedef struct D3D12_INPUT_ELEMENT_DESC
 	{
@@ -998,5 +997,99 @@ D3D12_DEPTH_STENCIL_DESC SkyboxShader::CreateDepthStencilState()
 		desc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	}
 
+	return desc;
+}
+
+void ShadowMapShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSignature> pd3dRootSignature)
+{
+	m_pd3dPipelineStates.resize(1);
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC d3dPipelineDesc{};
+	{
+		d3dPipelineDesc.pRootSignature = RenderManager::g_pd3dRootSignature.Get();
+		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("ShadowMapVS");
+		d3dPipelineDesc.PS = SHADER->GetShaderByteCode("ShadowMapPS");
+		d3dPipelineDesc.RasterizerState = CreateRasterizerState();
+		d3dPipelineDesc.BlendState = CreateBlendState();
+		d3dPipelineDesc.DepthStencilState = CreateDepthStencilState();
+		d3dPipelineDesc.InputLayout = CreateInputLayout();
+		d3dPipelineDesc.SampleMask = UINT_MAX;
+		d3dPipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		d3dPipelineDesc.NumRenderTargets = 0;
+		d3dPipelineDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+		d3dPipelineDesc.SampleDesc.Count = 1;
+		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	}
+
+	HRESULT hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[0].GetAddressOf()));
+	if (FAILED(hr)) {
+		__debugbreak();
+	}
+}
+
+D3D12_INPUT_LAYOUT_DESC ShadowMapShader::CreateInputLayout()
+{
+	/*
+	typedef struct D3D12_INPUT_ELEMENT_DESC
+	{
+		LPCSTR SemanticName;
+		UINT SemanticIndex;
+		DXGI_FORMAT Format;
+		UINT InputSlot;
+		UINT AlignedByteOffset;
+		D3D12_INPUT_CLASSIFICATION InputSlotClass;
+		UINT InstanceDataStepRate;
+	} 	D3D12_INPUT_ELEMENT_DESC;
+	*/
+
+	m_d3dInputElements = {
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	};
+
+	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc;
+	inputLayoutDesc.NumElements = m_d3dInputElements.size();
+	inputLayoutDesc.pInputElementDescs = m_d3dInputElements.data();
+
+	return inputLayoutDesc;
+}
+
+D3D12_RASTERIZER_DESC ShadowMapShader::CreateRasterizerState()
+{
+	D3D12_RASTERIZER_DESC desc{};
+	{
+		desc.FillMode = D3D12_FILL_MODE_SOLID;
+		desc.CullMode = D3D12_CULL_MODE_NONE;
+		desc.FrontCounterClockwise = FALSE;
+		desc.DepthBias = 100000;
+		desc.DepthBiasClamp = 0.f;
+		desc.SlopeScaledDepthBias = 1.0f;
+		desc.DepthClipEnable = TRUE;
+		desc.MultisampleEnable = FALSE;
+		desc.AntialiasedLineEnable = FALSE;
+		desc.ForcedSampleCount = 0;
+		desc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	}
+	return desc;
+}
+
+D3D12_DEPTH_STENCIL_DESC ShadowMapShader::CreateDepthStencilState()
+{
+	D3D12_DEPTH_STENCIL_DESC desc{};
+	{
+		desc.DepthEnable = TRUE;
+		desc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+		desc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+		desc.StencilEnable = FALSE;
+		desc.StencilReadMask = 0x00;
+		desc.StencilWriteMask = 0x00;
+		desc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+		desc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+		desc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+		desc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
+		desc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+		desc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+		desc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+		desc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
+	}
 	return desc;
 }

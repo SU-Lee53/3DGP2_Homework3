@@ -6,6 +6,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Standard Shader
 
+#define DIRECTIONAL_SHADOW_MAP_SIZE     4096
+#define SPOT_SHADOW_MAP_SIZE            1024
+
 struct VS_STANDARD_INPUT
 {
 	float3 position		: POSITION;
@@ -22,18 +25,21 @@ struct VS_STANDARD_OUTPUT
     float2 uv			: TEXCOORD0;
 	float3 normalW		: NORMAL;
 	float3 tangentW		: TANGENT;
-	float3 biTangentW	: BITANGENT;
+    float3 biTangentW   : BITANGENT;
+    
+    float4 shadowPositions[MAX_LIGHTS] : TEXCOORD1;
 };
 
 VS_STANDARD_OUTPUT VSStandard(VS_STANDARD_INPUT input, uint nInstanceID : SV_InstanceID)
 {
-    VS_STANDARD_OUTPUT output;
+    VS_STANDARD_OUTPUT output = (VS_STANDARD_OUTPUT)0;
 
     matrix mtxViewProjection = mul(gmtxView, gmtxProjection);
 	
     matrix mtxWorld = gnBaseIndex == -1 ? gmtxWorld : sbInstanceData[gnBaseIndex + nInstanceID];
     
-    output.positionW = mul(float4(input.position, 1.f), mtxWorld).xyz;
+    float3 positionW = mul(float4(input.position, 1.f), mtxWorld).xyz;
+    output.positionW = positionW;
     output.position = mul(float4(output.positionW, 1.f), mtxViewProjection);
 	
     output.normalW = mul(float4(input.normal, 0.f), mtxWorld).xyz;
@@ -42,7 +48,16 @@ VS_STANDARD_OUTPUT VSStandard(VS_STANDARD_INPUT input, uint nInstanceID : SV_Ins
 	
     output.uv = input.uv;
 	
-	return output;
+    [unroll(MAX_LIGHTS)]
+    for (int i = 0; i < MAX_LIGHTS; ++i)
+    {
+        if (gLights[i].m_bEnable)
+        {
+            output.shadowPositions[i] = mul(float4(positionW, 1.f), gLights[i].xmf4x4ToTextures);
+        }
+    }
+    
+    return output;
 }
 
 float3 ComputeNormal(float3 normalW, float3 tangentW, float2 uv)
@@ -56,6 +71,46 @@ float3 ComputeNormal(float3 normalW, float3 tangentW, float2 uv)
     float3 normal = (normalFromMap * 2.0f) - 1.0f; // [0, 1] ---> [-1, 1]
     
     return normalize(mul(normal, TBN));
+}
+
+float ComputePCFFactor(float4 vShadowPosition[MAX_LIGHTS])
+{
+    float fShadowFactor = 0.f;
+    const float fBias = 0.006f;
+    
+    [unroll(MAX_LIGHTS)]
+    for (int i = 0; i < MAX_LIGHTS; ++i)
+    {
+        if(gLights[i].m_bEnable)
+        {
+            float deltaX = 0.f, deltaY = 0.f;
+            if (gLights[i].m_nType == DIRECTIONAL_LIGHT)
+            {
+                deltaX = 1 / DIRECTIONAL_SHADOW_MAP_SIZE;
+                deltaY = 1 / DIRECTIONAL_SHADOW_MAP_SIZE;
+            }
+            else
+            {
+                deltaX = 1 / SPOT_SHADOW_MAP_SIZE;
+                deltaY = 1 / SPOT_SHADOW_MAP_SIZE;
+            }
+
+            float fFactor = 0.0;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(-deltaX, -deltaY), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(0.f, -deltaY), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(deltaX, -deltaY), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(-deltaX, 0.f), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(0.f, 0.f), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(+deltaX, 0.f), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(-deltaX, +deltaY), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(0.f, +deltaY), vShadowPosition[i].z).r;
+            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(+deltaX, +deltaY), vShadowPosition[i].z).r;
+        
+            fShadowFactor += fFactor / 9;
+        }
+    }
+
+    return clamp(fShadowFactor, 0.f, 1.f);
 }
 
 float4 PSStandard(VS_STANDARD_OUTPUT input) : SV_TARGET
@@ -79,13 +134,18 @@ float4 PSStandard(VS_STANDARD_OUTPUT input) : SV_TARGET
 
     float4 cIllumination = float4(1.0f, 1.0f, 1.0f, 1.0f);
     float4 cColor = cAlbedoColor + cSpecularColor + cEmissionColor;
+    
+    // Shadow
+    float fShadowFactor = ComputePCFFactor(input.shadowPositions);
+    
+    
     if (gMaterial.m_textureMask & MATERIAL_TYPE_NORMAL_MAP)
     {
         float3 normalW = ComputeNormal(input.normalW, input.tangentW, input.uv);
-        cIllumination = Lighting(input.positionW, normalW);
+        cIllumination = LightingWithShadows(input.positionW, normalW, fShadowFactor);
     }
     
-    cColor = lerp(cColor, cIllumination, 0.5f);
+    cColor = cColor * cIllumination; // lerp(cColor, cIllumination, 0.5f);
     return cColor;
 }
 
@@ -95,7 +155,7 @@ float4 PSStandard(VS_STANDARD_OUTPUT input) : SV_TARGET
 
 VS_STANDARD_OUTPUT VSMirror(VS_STANDARD_INPUT input, uint nInstanceID : SV_InstanceID)
 {
-    VS_STANDARD_OUTPUT output;
+    VS_STANDARD_OUTPUT output = (VS_STANDARD_OUTPUT) 0;
 
     matrix mtxViewProjection = mul(gmtxView, gmtxProjection);
     
@@ -201,6 +261,8 @@ struct DS_TERRAIN_TESSELLATION_OUTPUT
     float4 color : COLOR;
     float2 uv0 : TEXCOORD0;
     float2 uv1 : TEXCOORD1;
+    
+    float4 shadowPositions[MAX_LIGHTS] : TEXCOORD2;
 };
 
 VS_TERRAIN_TESSELLATION_OUTPUT VSTerrainTessellated(VS_TERRAIN_TESSELLATION_INPUT input)
@@ -260,60 +322,36 @@ HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<
     output.fTessInsides[0] = CalculateTessFactor(c);
     output.fTessInsides[1] = output.fTessInsides[0];
 
-    //output.fTessEdges[0] = 15;
-    //output.fTessEdges[1] = 15;
-    //output.fTessEdges[2] = 15;
-    //output.fTessEdges[3] = 15;
-    //output.fTessInsides[0] = 15;
-    //output.fTessInsides[1] = 15;
-    
     return output;
-}
-
-float4 BernsteinCoefficient(float t)
-{
-    float tInv = 1.0f - t;
-    
-    // P(t) = 
-    // (1 - t)^3 * P0 + 
-    // 3(1 - t)^2 * t * P1 +
-    // 3(1 - t) * t^2 * p2 + 
-    // t^3 * p3
-    return float4(tInv * tInv * tInv, 3.f * t * tInv * tInv, 3.f * t * t * tInv, t * t * t);
-}
-
-float3 CubicBezierSum(OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 4> patch, float4 u, float4 v)
-{
-    float3 sum = float3(0, 0, 0);
-    sum = v.x * (u.x * patch[0].positionW + u.y * patch[1].positionW + u.z * patch[2].positionW + u.w * patch[3].positionW);
-    sum += v.x * (u.x * patch[4].positionW + u.y * patch[5].positionW + u.z * patch[6].positionW + u.w * patch[7].positionW);
-    sum += v.x * (u.x * patch[8].positionW + u.y * patch[9].positionW + u.z * patch[10].positionW + u.w * patch[11].positionW);
-    sum += v.x * (u.x * patch[12].positionW + u.y * patch[13].positionW + u.z * patch[14].positionW + u.w * patch[15].positionW);
-    
-    return sum;
 }
 
 [domain("quad")]
 DS_TERRAIN_TESSELLATION_OUTPUT DSTerrainTessellated(HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT patchConstant, float2 uv : SV_DomainLocation, OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 4> patch)
 {
-    DS_TERRAIN_TESSELLATION_OUTPUT output;
-    
-    //float4 uB = BernsteinCoefficient(uv.x);
-    //float4 vB = BernsteinCoefficient(uv.y);
-    //float3 position = CubicBezierSum(patch, uB, vB);
-    //
-    //matrix mtxWVP = mul(gmtxTerrainWorld, gmtxView);
-    //mtxWVP = mul(mtxWVP, gmtxProjection);
-    //output.position = mul(float4(position, 1.f), mtxWVP);
+    DS_TERRAIN_TESSELLATION_OUTPUT output = (DS_TERRAIN_TESSELLATION_OUTPUT) 0;
     
     float3 positionW = lerp(lerp(patch[0].positionW, patch[1].positionW, uv.x), lerp(patch[2].positionW, patch[3].positionW, uv.x), uv.y);
     output.color = lerp(lerp(patch[0].color, patch[1].color, uv.x), lerp(patch[2].color, patch[3].color, uv.x), uv.y);
     output.uv0 = lerp(lerp(patch[0].uv0, patch[1].uv0, uv.x), lerp(patch[2].uv0, patch[3].uv0, uv.x), uv.y);
     output.uv1 = lerp(lerp(patch[0].uv1, patch[1].uv1, uv.x), lerp(patch[2].uv1, patch[3].uv1, uv.x), uv.y);
     
+    if(gbTerrainUseHeightMap)
+    {
+        positionW.y = gtxtTerrainHeightMap.SampleLevel(gssClamp, output.uv0, 0).r * 255.f * gvTerrainScale.y;
+    }
+    
     matrix mtxWVP = mul(gmtxTerrainWorld, gmtxView);
     mtxWVP = mul(mtxWVP, gmtxProjection);
     output.position = mul(float4(positionW, 1.f), mtxWVP);
+    
+    [unroll(MAX_LIGHTS)]
+    for (int i = 0; i < MAX_LIGHTS; ++i)
+    {
+        if (gLights[i].m_bEnable)
+        {
+            output.shadowPositions[i] = mul(float4(positionW, 1.f), gLights[i].xmf4x4ToTextures);
+        }
+    }
     
     return output;
 }
@@ -325,7 +363,9 @@ float4 PSTerrainTessellated(DS_TERRAIN_TESSELLATION_OUTPUT input) : SV_TARGET0
     
     float4 cFinalColor = lerp(cBaseColor, cDetailColor, 0.5);
     
-    return cFinalColor;
+    float fShadowFactor = ComputePCFFactor(input.shadowPositions);
+    
+    return cFinalColor * fShadowFactor;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -592,3 +632,39 @@ float4 PSDebug(GS_DEBUG_OUTPUT input) : SV_Target0
 {
     return gcColor;
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ShadowMap Shader
+
+struct VS_SHADOW_INPUT
+{
+    float3 position : POSITION;
+};
+
+struct VS_SHADOW_OUTPUT
+{
+    float4 position : SV_POSITION;
+};
+
+VS_SHADOW_OUTPUT VSShadowMap(VS_SHADOW_INPUT input, uint nInstanceID : SV_InstanceID)
+{
+    VS_SHADOW_OUTPUT output;
+
+    matrix mtxViewProjection = mul(gmtxView, gmtxProjection);
+	
+    matrix mtxWorld = gnBaseIndex == -1 ? gmtxWorld : sbInstanceData[gnBaseIndex + nInstanceID];
+    
+    float3 vPositionW = mul(float4(input.position, 1.f), mtxWorld).xyz;
+    output.position = mul(float4(vPositionW, 1.f), mtxViewProjection);
+	
+    return output;
+}
+
+void PSShadowMap(VS_SHADOW_OUTPUT input)
+{
+}
+
+
+
+

@@ -14,6 +14,7 @@ struct LightData {
     int nType;                        // c6.y
     float fRange;                     // c6.z
     float padding;                      // c6.w
+    XMFLOAT4X4 xmf4x4ToTextures;
 };
 
 enum LIGHT_TYPE : int {
@@ -22,17 +23,22 @@ enum LIGHT_TYPE : int {
     LIGHT_TYPE_DIRECTIONAL_LIGHT = 3,
 };
 
+#define DIRECTIONAL_SHADOW_MAP_SIZE     4096
+#define SPOT_SHADOW_MAP_SIZE            1024
+
 class Light {
 public:
+    Light(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);
+    void Update();
+    virtual void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> pd3dCommmandList) {}
+
     virtual LightData MakeLightData() { return LightData{}; }
+
+    void UpdateShaderVariables() const;
+    const ConstantBuffer& GetCBuffer() const { return m_LightCameraCBuffer; }
 
 public:
     bool m_bEnable;
-};
-
-class PointLight : public Light {
-public:
-    virtual LightData MakeLightData() override;
 
     XMFLOAT4    m_xmf4Diffuse;
     XMFLOAT4    m_xmf4Ambient;
@@ -40,6 +46,20 @@ public:
 
     XMFLOAT3    m_xmf3Position;
     XMFLOAT3    m_xmf3Direction;
+
+    XMFLOAT4X4  m_xmf4x4ViewFromLight;
+    XMFLOAT4X4  m_xmf4x4ProjectionFromLight;
+
+    ConstantBuffer  m_LightCameraCBuffer;
+};
+
+class PointLight : public Light {
+public:
+    PointLight(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
+        : Light(pd3dDevice, pd3dCommandList) {
+    }
+
+    virtual LightData MakeLightData() override;
 
     float       m_fRange;
     float       m_fAttenuation0;
@@ -50,14 +70,11 @@ public:
 
 class SpotLight : public Light {
 public:
+    SpotLight(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
+        : Light(pd3dDevice, pd3dCommandList) {
+    }
     virtual LightData MakeLightData() override;
-
-    XMFLOAT4    m_xmf4Diffuse;
-    XMFLOAT4    m_xmf4Ambient;
-    XMFLOAT4    m_xmf4Specular;
-
-    XMFLOAT3    m_xmf3Position;
-    XMFLOAT3    m_xmf3Direction;
+    virtual void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> pd3dCommmandList) override;
 
     float       m_fRange;
     float       m_fFalloff;
@@ -70,12 +87,10 @@ public:
 
 class DirectionalLight : public Light {
 public:
+    DirectionalLight(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
+        : Light(pd3dDevice, pd3dCommandList) {
+    }
     virtual LightData MakeLightData() override;
-
-    XMFLOAT4    m_xmf4Diffuse;
-    XMFLOAT4    m_xmf4Ambient;
-    XMFLOAT4    m_xmf4Specular;
-
-    XMFLOAT3    m_xmf3Direction;
+    virtual void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> pd3dCommmandList) override;
 };
 

@@ -39,7 +39,7 @@ class ComputeManager {
 public:
 	ComputeManager();
 
-	void Initialize(ComPtr<ID3D12Device> pd3dDevice);
+	void Initialize(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);
 
 	void SetBackBuffer(FrameBufferResources frameBufferResources, D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVHandle);
 	void Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList);

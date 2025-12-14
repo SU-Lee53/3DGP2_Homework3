@@ -5,7 +5,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Light
 
-#define MAX_LIGHTS			16 
+#define MAX_LIGHTS			15
 #define MAX_MATERIALS		512 
 
 #define POINT_LIGHT			1
@@ -31,6 +31,7 @@ struct LIGHT
     int m_nType;
     float m_fRange;
     float padding;
+    float4x4 xmf4x4ToTextures;
 };
 
 cbuffer cbLightData : register(b0)
@@ -59,6 +60,8 @@ Texture2DArray gtxtSkyboxarr : register(t0);
 cbuffer cbTerrainData : register(b2)
 {
     matrix gmtxTerrainWorld;
+    float3 gvTerrainScale;
+    bool gbTerrainUseHeightMap;
     float2 gvTerrainUVOffset;
 };
 
@@ -81,7 +84,7 @@ Texture2D gtxtTerrainBillboards[3] : register(t1);
 
 SamplerState gssWrap : register(s0);
 SamplerState gssClamp : register(s1);
-
+SamplerComparisonState gssShadow : register(s2);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // World Matrices
@@ -131,6 +134,9 @@ Texture2D gtxtDetailNormalMap   : register(t11);
 #define MATERIAL_TYPE_DETAIL_ALBEDO_MAP    0x20
 #define MATERIAL_TYPE_DETAIL_NORMAL_MAP    0x40
 
+Texture2D<float> gtxtShadowMaps[MAX_LIGHTS] : register(t12); // t12 ~ t27
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Instancing Data 
 
@@ -149,5 +155,10 @@ cbuffer cbOBBDebugData : register(b7)
     float4 gvOBBOrientationQuat;
     float4 gcColor;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Terrain HeightMap 
+
+Texture2D gtxtTerrainHeightMap : register(t28); // t12 ~ t27
 
 #endif

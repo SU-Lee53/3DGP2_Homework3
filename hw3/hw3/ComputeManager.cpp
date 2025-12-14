@@ -68,7 +68,7 @@ ComputeManager::ComputeManager()
 {
 }
 
-void ComputeManager::Initialize(ComPtr<ID3D12Device> pd3dDevice)
+void ComputeManager::Initialize(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 {
 	m_pd3dDevice = pd3dDevice;
 
@@ -89,6 +89,11 @@ void ComputeManager::Initialize(ComPtr<ID3D12Device> pd3dDevice)
 
 	m_pUAVTextures[0] = TEXTURE->GetTexture("RWTexture1");
 	m_pUAVTextures[1] = TEXTURE->GetTexture("RWTexture2");
+
+	CD3DX12_RESOURCE_BARRIER resourceBarriers[2];
+	resourceBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	resourceBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE);
+	pd3dCommandList->ResourceBarrier(2, resourceBarriers);
 
 	LoadComputePrograms();
 }
@@ -180,7 +185,6 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	pd3dCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[1]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE));
 
 	CopyUAVToBackBuffer(pd3dCommandList, descHandle);
-
 }
 
 void ComputeManager::LoadComputePrograms()
@@ -389,6 +393,8 @@ void ComputeManager::CreateGraphicsPipelineState()
 		d3dPipelineDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		d3dPipelineDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		d3dPipelineDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+		d3dPipelineDesc.DepthStencilState.DepthEnable = FALSE;
+		d3dPipelineDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;	// Quad 복사가 되면 Depth 가 전부 0이 되므로 쓰면 안됨
 		d3dPipelineDesc.InputLayout.NumElements = 0;
 		d3dPipelineDesc.InputLayout.pInputElementDescs = nullptr;
 		d3dPipelineDesc.SampleMask = UINT_MAX;

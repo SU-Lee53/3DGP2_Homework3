@@ -7,64 +7,76 @@ GameScene::GameScene()
 {
 }
 
-void GameScene::BuildDefaultLightsAndMaterials()
+void GameScene::BuildDefaultLightsAndMaterials(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 {
-	m_pLights.reserve(4);
+	m_pLights.reserve(2);
 
 	m_xmf4GlobalAmbient = XMFLOAT4(0.15f, 0.15f, 0.15f, 1.0f);
 
-	std::shared_ptr<PointLight> pLight1 = std::make_shared<PointLight>();
+	std::shared_ptr<SpotLight> pLight1 = std::make_shared<SpotLight>(pd3dDevice, pd3dCommandList);
 	pLight1->m_bEnable = true;
-	pLight1->m_fRange = 1000.0f;
+	pLight1->m_fRange = 1200.0f;
 	pLight1->m_xmf4Ambient = XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f);
-	pLight1->m_xmf4Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-	pLight1->m_xmf4Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 0.0f);
-	pLight1->m_xmf3Position = XMFLOAT3(30.0f, 30.0f, 30.0f);
-	pLight1->m_xmf3Direction = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	pLight1->m_xmf4Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	pLight1->m_xmf4Specular = XMFLOAT4(0.3f, 0.3f, 0.3f, 0.0f);
+	pLight1->m_xmf3Position = XMFLOAT3(-50.0f, 20.0f, -5.0f);
+	pLight1->m_xmf3Direction = XMFLOAT3(0.0f, 0.0f, 1.0f);
 	pLight1->m_fAttenuation0 = 1.0f;
-	pLight1->m_fAttenuation1 = 0.001f;
+	pLight1->m_fAttenuation1 = 0.01f;
 	pLight1->m_fAttenuation2 = 0.0001f;
+	pLight1->m_fFalloff = 8.0f;
+	pLight1->m_fPhi = (float)cos(XMConvertToRadians(40.0f));
+	pLight1->m_fTheta = (float)cos(XMConvertToRadians(20.0f));
+
+	XMStoreFloat4x4(&pLight1->m_xmf4x4ViewFromLight, XMMatrixLookToLH(XMLoadFloat3(&pLight1->m_xmf3Position), XMLoadFloat3(&pLight1->m_xmf3Direction), XMVectorSet(0, 1, 0, 0)));
+	XMStoreFloat4x4(&pLight1->m_xmf4x4ProjectionFromLight, XMMatrixPerspectiveFovLH(XMConvertToRadians(pLight1->m_fPhi * 2), 1, 10.f, pLight1->m_fRange));
 	m_pLights.push_back(pLight1);
 
-	std::shared_ptr<SpotLight> pLight2 = std::make_shared<SpotLight>();
+	std::shared_ptr<DirectionalLight> pLight2 = std::make_shared<DirectionalLight>(pd3dDevice, pd3dCommandList);
 	pLight2->m_bEnable = true;
-	pLight2->m_fRange = 1200.0f;
-	pLight2->m_xmf4Ambient = XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f);
-	pLight2->m_xmf4Diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	pLight2->m_xmf4Specular = XMFLOAT4(0.3f, 0.3f, 0.3f, 0.0f);
-	pLight2->m_xmf3Position = XMFLOAT3(-50.0f, 20.0f, -5.0f);
-	pLight2->m_xmf3Direction = XMFLOAT3(0.0f, 0.0f, 1.0f);
-	pLight2->m_fAttenuation0 = 1.0f;
-	pLight2->m_fAttenuation1 = 0.01f;
-	pLight2->m_fAttenuation2 = 0.0001f;
-	pLight2->m_fFalloff = 8.0f;
-	pLight2->m_fPhi = (float)cos(XMConvertToRadians(40.0f));
-	pLight2->m_fTheta = (float)cos(XMConvertToRadians(20.0f));
+	pLight2->m_xmf4Ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+	pLight2->m_xmf4Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+	pLight2->m_xmf4Specular = XMFLOAT4(0.4f, 0.4f, 0.4f, 0.0f);
+	pLight2->m_xmf3Direction = XMFLOAT3(1.0f, -1.0f, 0);
+
+	// Scene의 중심 구함
+	XMFLOAT3 xmf3SceneCenter = GetBoundingBox().Center;
+
+	// Drectional Light 의 위치 계산
+	float fLightDistance = 3000.f;
+	pLight2->m_xmf3Position = Vector3::Subtract(xmf3SceneCenter, Vector3::ScalarProduct(pLight2->m_xmf3Direction, fLightDistance));
+	XMStoreFloat4x4(&pLight2->m_xmf4x4ViewFromLight, XMMatrixLookToLH(XMLoadFloat3(&pLight2->m_xmf3Position), XMVector3Normalize(XMLoadFloat3(&pLight2->m_xmf3Direction)), XMVectorSet(0.f, 1.f, 0.f, 0.f)));
+
+	// Orthographic 의 Width, Height, Near, Far 계산
+	XMVECTOR xmvAABBMin = g_XMFltMax;
+	XMVECTOR xmvAABBMax = g_XMFltMin;
+	XMVECTOR pxmvLightSpaceSceneAABBPoints[8];
+
+	XMFLOAT3 xmf3SceneCorners[8];
+	GetBoundingBox().GetCorners(xmf3SceneCorners);
+	for (int i = 0; i < _countof(xmf3SceneCorners); ++i) {
+		XMFLOAT4 xmf4SceneAABBPoint = XMFLOAT4(xmf3SceneCorners[i].x, xmf3SceneCorners[i].y, xmf3SceneCorners[i].z, 1.0f);
+		pxmvLightSpaceSceneAABBPoints[i] = XMVector4Transform(XMLoadFloat4(&xmf4SceneAABBPoint), XMLoadFloat4x4(&pLight2->m_xmf4x4ViewFromLight));
+		xmvAABBMin = XMVectorMin(pxmvLightSpaceSceneAABBPoints[i], xmvAABBMin);
+		xmvAABBMax = XMVectorMax(pxmvLightSpaceSceneAABBPoints[i], xmvAABBMax);
+	}
+	XMStoreFloat4x4(&pLight2->m_xmf4x4ProjectionFromLight, XMMatrixOrthographicOffCenterLH(
+			XMVectorGetX(xmvAABBMin),
+			XMVectorGetX(xmvAABBMax),
+			XMVectorGetY(xmvAABBMin),
+			XMVectorGetY(xmvAABBMax),
+			XMVectorGetZ(xmvAABBMin),
+			XMVectorGetZ(xmvAABBMax)
+		)
+	);
+
+	//auto& [fMinX, fMaxX] = std::minmax_element(std::begin(xmf3SceneCorners), std::end(xmf3SceneCorners), [](const XMFLOAT3& lhs, const XMFLOAT3& rhs) { return lhs.x < rhs.x; });
+	//auto& [fMinY, fMaxY] = std::minmax_element(std::begin(xmf3SceneCorners), std::end(xmf3SceneCorners), [](const XMFLOAT3& lhs, const XMFLOAT3& rhs) { return lhs.y < rhs.y; });
+	//auto& [fMinZ, fMaxZ] = std::minmax_element(std::begin(xmf3SceneCorners), std::end(xmf3SceneCorners), [](const XMFLOAT3& lhs, const XMFLOAT3& rhs) { return lhs.z < rhs.z; });
+	//
+	//XMStoreFloat4x4(&pLight2->m_xmf4x4ProjectionFromLight, XMMatrixOrthographicLH(std::abs(fMaxX->x - fMinX->x), std::abs(fMaxY->y - fMinY->y), fMinZ->z, fMaxZ->z));
+	//XMStoreFloat4x4(&pLight2->m_xmf4x4ProjectionFromLight, XMMatrixOrthographicOffCenterLH(fMinX->x, fMaxX->x, fMinY->y, fMaxY->y, fMinZ->z, fMaxZ->z));
 	m_pLights.push_back(pLight2);
-
-	std::shared_ptr<DirectionalLight> pLight3 = std::make_shared<DirectionalLight>();
-	pLight3->m_bEnable = true;
-	pLight3->m_xmf4Ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-	pLight3->m_xmf4Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-	pLight3->m_xmf4Specular = XMFLOAT4(0.4f, 0.4f, 0.4f, 0.0f);
-	pLight3->m_xmf3Direction = XMFLOAT3(1.0f, -1.0f, 1.0f);
-	m_pLights.push_back(pLight3);
-
-	std::shared_ptr<SpotLight> pLight4 = std::make_shared<SpotLight>();
-	pLight4->m_bEnable = true;
-	pLight4->m_fRange = 600.0f;
-	pLight4->m_xmf4Ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-	pLight4->m_xmf4Diffuse = XMFLOAT4(0.3f, 0.7f, 0.0f, 1.0f);
-	pLight4->m_xmf4Specular = XMFLOAT4(0.3f, 0.3f, 0.3f, 0.0f);
-	pLight4->m_xmf3Position = XMFLOAT3(50.0f, 30.0f, 30.0f);
-	pLight4->m_xmf3Direction = XMFLOAT3(0.0f, 1.0f, 1.0f);
-	pLight4->m_fAttenuation0 = 1.0f;
-	pLight4->m_fAttenuation1 = 0.01f;
-	pLight4->m_fAttenuation2 = 0.0001f;
-	pLight4->m_fFalloff = 8.0f;
-	pLight4->m_fPhi = (float)cos(XMConvertToRadians(90.0f));
-	pLight4->m_fTheta = (float)cos(XMConvertToRadians(30.0f));
-	m_pLights.push_back(pLight4);
 
 	//m_xmf4GlobalAmbient = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
 }
@@ -73,7 +85,6 @@ void GameScene::BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 {
 	CreateRootSignature(pd3dDevice);
 	Material::PrepareShaders(pd3dDevice, m_pd3dRootSignature);
-	BuildDefaultLightsAndMaterials();
 
 	GameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dRootSignature, "../Models/SuperCobra.bin");
 	GameObject::LoadGeometryFromFile(pd3dDevice, pd3dCommandList, m_pd3dRootSignature, "../Models/Tower.bin");
@@ -160,7 +171,6 @@ void GameScene::BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 			pTankObject->Initialize();
 			
 		
-
 			XMFLOAT3 xmf3RotationAxis = XMFLOAT3(0.f, 1.f, 0.f);
 		
 			for (int i = 0; i < 10; i++) {
@@ -198,16 +208,15 @@ void GameScene::BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 			pBuildingObject->Initialize(pd3dDevice, pd3dCommandList, fWidth, fLength, fHeight, 20, 63);
 			pBuildingObject->SetPosition(XMFLOAT3(3900.f, 0.f, 3900.f));
 			m_pGameObjects.push_back(pBuildingObject);
-
-
 		}
-
-
 	}
 
 	m_pHPTextSprite = std::make_shared<TextSprite>("", 0.0f, 0.0f, 0.3f, 0.05f, XMFLOAT4(1, 0, 0, 1), 1, true);
 	m_pSprites.push_back(m_pHPTextSprite);
 
+	GenerateSceneBoundingBox();
+
+	BuildDefaultLightsAndMaterials(pd3dDevice, pd3dCommandList);
 	CreateShaderVariables(pd3dDevice, pd3dCommandList);
 }
 
@@ -273,17 +282,6 @@ bool GameScene::ProcessInput(UCHAR* pKeysBuffer)
 		}
 	}
 
-	// Explosion test
-	//if (pKeysBuffer[VK_SPACE] & 0xF0) {
-	//	XMFLOAT3 xmf3Pos = m_pPlayer->GetPosition();
-	//	EffectParameter param;
-	//	param.xmf3Position = xmf3Pos;
-	//	param.xmf3Force = XMFLOAT3(0, 0, 0);
-	//	param.fElapsedTime = 0.f;
-	//
-	//	EFFECT->AddEffect<ExplosionEffect>(param);
-	//}
-
 	return true;
 }
 
@@ -291,7 +289,7 @@ void GameScene::Update(float fTimeElapsed)
 {
 	if (m_pLights.size() != 0)
 	{
-		std::shared_ptr<SpotLight> pSpotLight = static_pointer_cast<SpotLight>(m_pLights[1]);
+		std::shared_ptr<SpotLight> pSpotLight = static_pointer_cast<SpotLight>(m_pLights[0]);
 		pSpotLight->m_xmf3Position = m_pPlayer->GetPosition();
 		pSpotLight->m_xmf3Direction = m_pPlayer->GetLookVector();
 	}

@@ -111,12 +111,19 @@ void ShaderManager::Initialize()
 	m_pd3dBlobs.push_back(m_pd3dVSBlob);
 	m_pd3dBlobs.push_back(m_pd3dPSBlob);
 
+	// Shadow Map
+	m_pCompiledShaderByteCodeMap.insert({ "ShadowMapVS", Shader::CompileShader(L"../HLSL/Shaders.hlsl", "VSShadowMap", "vs_5_1", m_pd3dVSBlob.GetAddressOf()) });
+	m_pCompiledShaderByteCodeMap.insert({ "ShadowMapPS", Shader::CompileShader(L"../HLSL/Shaders.hlsl", "PSShadowMap", "ps_5_1", m_pd3dPSBlob.GetAddressOf()) });
+	m_pd3dBlobs.push_back(m_pd3dVSBlob);
+	m_pd3dBlobs.push_back(m_pd3dPSBlob);
+
 
 	Load<StandardShader>();
 	Load<TerrainShader>();
 	Load<OBBDebugShader>();
 	Load<MirrorShader>();
 	Load<SkyboxShader>();
+	Load<ShadowMapShader>();
 
 }
 

@@ -43,6 +43,8 @@ private:
 
 struct CB_TERRAIN_DATA {
 	XMFLOAT4X4 xmf4x4TerrainWorld;
+	XMFLOAT3 xmf3TerrainScale;
+	BOOL bTerrainUseHeightMap;
 	XMFLOAT2 xmf2UVTranslation = XMFLOAT2(0, 0);
 };
 
@@ -83,10 +85,10 @@ public:
 
 public:
 	float GetHeight(float x, float z, bool bReverseQuad = false);
-	XMFLOAT3 GetNormal(float x, float z) { return m_pHeightMapImage->GetHeightMapNormal(int(x / m_xmf3Scale.x), int(z / m_xmf3Scale.z));  }
+	XMFLOAT3 GetNormal(float x, float z) { return m_pHeightMapRawImage->GetHeightMapNormal(int(x / m_xmf3Scale.x), int(z / m_xmf3Scale.z));  }
 
-	int GetHeightMapWidth() { return m_pHeightMapImage->GetRawImageWidth(); }
-	int GetHeightMapLength() { return m_pHeightMapImage->GetRawImageLength(); }
+	int GetHeightMapWidth() { return m_pHeightMapRawImage->GetRawImageWidth(); }
+	int GetHeightMapLength() { return m_pHeightMapRawImage->GetRawImageLength(); }
 
 	XMFLOAT3 GetScale() { return m_xmf3Scale; }
 
@@ -100,7 +102,9 @@ public:
 	void SetWireframeMode(bool bMode);
 
 private:
-	std::shared_ptr<HeightMapRawImage>			m_pHeightMapImage = nullptr;
+	std::shared_ptr<Texture> m_pHeightMapTexture = nullptr;
+
+	std::shared_ptr<HeightMapRawImage>			m_pHeightMapRawImage = nullptr;
 	std::vector<std::shared_ptr<TerrainMesh>>	m_pTerrainMeshes = {};
 
 	std::shared_ptr<TerrainObject>				m_pChildTerrain = nullptr;
@@ -110,6 +114,7 @@ private:
 	int m_nWidth = 0;
 	int m_nLength = 0;
 	XMFLOAT3 m_xmf3Scale;
+	BOOL m_bUseHeightMap = FALSE;
 
 	float m_fWaterHeight = 250.f;
 	float m_fBlendFactor = 1.f;

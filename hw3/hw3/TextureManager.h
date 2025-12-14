@@ -12,19 +12,29 @@ public:
 	std::shared_ptr<Texture> LoadTexture(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, const std::string& strKey, const std::wstring& wstrTexturePath, UINT nResourceType);
 	std::shared_ptr<Texture> GetTexture(const std::string& strKey);
 	
+	std::shared_ptr<Texture> CreateShadowMap(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT nMapSize);
+
 	void ReleaseUploadBuffers();
 
 public:
 	D3D12_CPU_DESCRIPTOR_HANDLE CreateSRV(std::shared_ptr<Texture> pTexture);
 	D3D12_CPU_DESCRIPTOR_HANDLE CreateUAV(std::shared_ptr<Texture> pTexture);
+	D3D12_CPU_DESCRIPTOR_HANDLE CreateDSV(std::shared_ptr<Texture> pTexture);
 
 
 private:
 	ComPtr<ID3D12Device> m_pd3dDevice;	// GameFramework::m_pd3dDeivce
 	std::unordered_map<std::string, std::shared_ptr<Texture>> m_pTextureMap;
 
-	ComPtr<ID3D12DescriptorHeap>				m_pd3dDescriptorHeap;
-	UINT nSRVUAVCreated = 0;
+	ComPtr<ID3D12DescriptorHeap>				m_pd3dSRVUAVDescriptorHeap;
+	UINT m_nSRVUAVCreated = 0;
+
+	ComPtr<ID3D12DescriptorHeap>				m_pd3dDSVDescriptorHeap;
+	UINT m_nDSVCreated = 0;
+
+	ComPtr<ID3D12DescriptorHeap>				m_pd3dRTVDescriptorHeap;
+	UINT m_nRTVCreated = 0;
+
 
 };
 

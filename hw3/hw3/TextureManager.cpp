@@ -12,7 +12,15 @@ TextureManager::TextureManager(ComPtr<ID3D12Device> pd3dDevice)
 		d3dHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		d3dHeapDesc.NodeMask = 0;
 	}
-	pd3dDevice->CreateDescriptorHeap(&d3dHeapDesc, IID_PPV_ARGS(m_pd3dDescriptorHeap.GetAddressOf()));
+	pd3dDevice->CreateDescriptorHeap(&d3dHeapDesc, IID_PPV_ARGS(m_pd3dSRVUAVDescriptorHeap.GetAddressOf()));
+
+	// DSV Heap
+	d3dHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	pd3dDevice->CreateDescriptorHeap(&d3dHeapDesc, IID_PPV_ARGS(m_pd3dDSVDescriptorHeap.GetAddressOf()));
+
+	// RTV Heap
+	d3dHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	pd3dDevice->CreateDescriptorHeap(&d3dHeapDesc, IID_PPV_ARGS(m_pd3dRTVDescriptorHeap.GetAddressOf()));
 }
 
 void TextureManager::LoadGameTextures(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
@@ -50,6 +58,17 @@ std::shared_ptr<Texture> TextureManager::LoadTexture(ComPtr<ID3D12GraphicsComman
     return it->second;
 }
 
+std::shared_ptr<Texture> TextureManager::CreateShadowMap(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, UINT nMapSize) 
+{
+	std::shared_ptr<Texture> pTex = std::make_shared<Texture>();
+	pTex->m_wstrTextureName = std::format(L"{}_{}", L"Shadow", m_nDSVCreated);
+	pTex->CreateShadowMap(m_pd3dDevice, pd3dCommandList, nMapSize, nMapSize);
+
+	std::string strKey = std::format("{}_{}", "Shadow", m_nDSVCreated);
+	m_pTextureMap.insert({ strKey, pTex });
+	return pTex;
+}
+
 std::shared_ptr<Texture> TextureManager::GetTexture(const std::string& strKey)
 {
 	auto it = m_pTextureMap.find(strKey);
@@ -69,8 +88,8 @@ void TextureManager::ReleaseUploadBuffers()
 
 D3D12_CPU_DESCRIPTOR_HANDLE TextureManager::CreateSRV(std::shared_ptr<Texture> pTexture)
 {
-	D3D12_CPU_DESCRIPTOR_HANDLE descHandle = m_pd3dDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	descHandle.ptr += ++nSRVUAVCreated * GameFramework::g_uiDescriptorHandleIncrementSize;
+	D3D12_CPU_DESCRIPTOR_HANDLE descHandle = m_pd3dSRVUAVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	descHandle.ptr += (m_nSRVUAVCreated++) * GameFramework::g_uiDescriptorHandleIncrementSize;
 
 	m_pd3dDevice->CreateShaderResourceView(pTexture->m_pd3dTextureResource.Get(), &pTexture->GetSRVDesc(), descHandle);
 
@@ -81,8 +100,8 @@ D3D12_CPU_DESCRIPTOR_HANDLE TextureManager::CreateSRV(std::shared_ptr<Texture> p
 
 D3D12_CPU_DESCRIPTOR_HANDLE TextureManager::CreateUAV(std::shared_ptr<Texture> pTexture)
 {
-	D3D12_CPU_DESCRIPTOR_HANDLE descHandle = m_pd3dDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	descHandle.ptr += ++nSRVUAVCreated * GameFramework::g_uiDescriptorHandleIncrementSize;
+	D3D12_CPU_DESCRIPTOR_HANDLE descHandle = m_pd3dSRVUAVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	descHandle.ptr += m_nSRVUAVCreated++ * GameFramework::g_uiDescriptorHandleIncrementSize;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC d3dSRVDesc = pTexture->GetSRVDesc();
 	D3D12_UNORDERED_ACCESS_VIEW_DESC d3dUAVDesc;
@@ -95,6 +114,29 @@ D3D12_CPU_DESCRIPTOR_HANDLE TextureManager::CreateUAV(std::shared_ptr<Texture> p
 		pTexture->m_pd3dTextureResource.Get(),
 		nullptr,	// Counter ¹Ì»ç¿ë
 		&d3dUAVDesc,
+		descHandle
+	);
+
+	return descHandle;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE TextureManager::CreateDSV(std::shared_ptr<Texture> pTexture)
+{
+	UINT nDSVIncrementSize = m_pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	D3D12_CPU_DESCRIPTOR_HANDLE descHandle = m_pd3dDSVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+ 	descHandle.ptr += (m_nDSVCreated++) * nDSVIncrementSize;
+
+	D3D12_RESOURCE_DESC d3dSRVDesc = pTexture->GetResourceDesc();
+	D3D12_DEPTH_STENCIL_VIEW_DESC d3dDSVDesc{};
+	{
+		d3dDSVDesc.Format = DXGI_FORMAT_D32_FLOAT;
+		d3dDSVDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		d3dDSVDesc.Flags = D3D12_DSV_FLAG_NONE;
+	}
+
+	m_pd3dDevice->CreateDepthStencilView(
+		pTexture->GetTexResource().Get(),
+		&d3dDSVDesc,
 		descHandle
 	);
 

@@ -145,7 +145,7 @@ private:
 	//ComPtr<ID3D12DescriptorHeap>		m_pd3dRtvDescriptorHeap = NULL;
 	//UINT								m_nRtvDescriptorIncrementSize;
 
-	FrameBuffer						m_FrameBuffers;
+	FrameBuffer							m_FrameBuffers;
 
 	ComPtr<ID3D12Resource>				m_pd3dDepthStencilBuffer = NULL;
 	ComPtr<ID3D12DescriptorHeap>		m_pd3dDsvDescriptorHeap = NULL;

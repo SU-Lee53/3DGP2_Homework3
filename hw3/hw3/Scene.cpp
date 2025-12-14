@@ -6,7 +6,7 @@ Scene::Scene()
 {
 }
 
-void Scene::BuildDefaultLightsAndMaterials()
+void Scene::BuildDefaultLightsAndMaterials(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 {
 }
 
@@ -44,6 +44,11 @@ void Scene::Update(float fTimeElapsed)
 	if (m_pTerrain) {
 		m_pTerrain->Update(fTimeElapsed);
 	}
+
+	for (auto& pLight : m_pLights) {
+		pLight->Update();
+	}
+
 }
 
 void Scene::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
@@ -257,4 +262,26 @@ void Scene::SetTerrainWireframeMode(bool bMode)
 	if (m_pTerrain) {
 		m_pTerrain->SetWireframeMode(bMode);
 	}
+}
+
+void Scene::GenerateSceneBoundingBox()
+{
+	// 씬에 아무것도 없으면 즉시 리턴
+	if (m_pGameObjects.size() == 0) {
+		return;
+	}
+
+	XMVECTOR xmvSceneMin = g_XMFltMax;
+	XMVECTOR xmvSceneMax = g_XMFltMin;
+
+	std::vector<XMFLOAT3> OBBPoints;
+	OBBPoints.reserve(m_pGameObjects.size() * BoundingOrientedBox::CORNER_COUNT);
+	for (const auto& pObj : m_pGameObjects) {
+		XMFLOAT3 xmf3OBBCorners[8] = {};
+		pObj->GetOBB().GetCorners(xmf3OBBCorners);
+
+		OBBPoints.insert(OBBPoints.end(), _countof(xmf3OBBCorners), xmf3OBBCorners[0]);
+	}
+
+	BoundingBox::CreateFromPoints(m_xmAABBScene, OBBPoints.size(), OBBPoints.data(), sizeof(XMFLOAT3));
 }
