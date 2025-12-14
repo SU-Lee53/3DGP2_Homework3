@@ -133,26 +133,19 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 
 	// 플레이어 속도에 따라 블러 강도를 조절
 	auto& pPlayer = CUR_SCENE->GetPlayer();
-	float blurScale = 0.f;
+	float fblurScale = 0.f;
 	if (pPlayer) {
 		XMFLOAT3 xmf3PlayerVelocity = pPlayer->GetVelocity();
 		float fSpeedXZ = sqrtf(xmf3PlayerVelocity.x * xmf3PlayerVelocity.x + xmf3PlayerVelocity.z * xmf3PlayerVelocity.z);
 		float fMaxVelocityXZ = pPlayer->GetMaxVelocityXZ();
 
-		blurScale = (fSpeedXZ - 400.f) / (fMaxVelocityXZ - 400.f);
-		blurScale = std::clamp(blurScale, 0.f, 1.f);
+		fblurScale = (fSpeedXZ - 100.f) / (fMaxVelocityXZ - 100.f);
+		fblurScale = std::clamp(fblurScale, 0.f, 1.f);
 	}
-
-	pd3dCommandList->SetComputeRoot32BitConstants(1, 1, &blurScale, 0);
+	pd3dCommandList->SetComputeRoot32BitConstants(1, 1, &fblurScale, 0);
 
 	auto& pHorzBlur = m_pComputePrograms[typeid(HorizentalBlur)];
 	auto& pVertBlur = m_pComputePrograms[typeid(VerticalBlur)];
-
-	pHorzBlur->SetInputHandle(m_d3dBackBufferSRVCPUHandle);
-	pHorzBlur->SetOutputHandle(m_pUAVTextures[0]->GetUAVCPUHandle());
-
-	pVertBlur->SetInputHandle(m_pUAVTextures[0]->GetUAVCPUHandle());
-	pVertBlur->SetOutputHandle(m_pUAVTextures[1]->GetUAVCPUHandle());
 
 	UINT nClientWidth = GameFramework::g_nClientWidth;
 	UINT nClientHeight = GameFramework::g_nClientHeight;
@@ -168,9 +161,8 @@ void ComputeManager::Dispatch(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	UINT nThreadY = nClientHeight;
 	UINT nThreadZ = 1;
 	pd3dCommandList->SetComputeRootDescriptorTable(0, descHandle.gpuHandle);
-	pHorzBlur->Dispatch(pd3dCommandList, nThreadX, nThreadY, nThreadZ);
 	descHandle.gpuHandle.ptr += 2 * GameFramework::g_uiDescriptorHandleIncrementSize;
-
+	pHorzBlur->Dispatch(pd3dCommandList, nThreadX, nThreadY, nThreadZ);
 
 	pd3dCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_pUAVTextures[0]->GetTexResource().Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_BARRIER_FLAG_NONE));
 

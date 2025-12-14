@@ -151,6 +151,7 @@ void TerrainObject::Initialize(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Gra
 		}
 	}
 	m_bUseHeightMap = TRUE;
+	m_bDrawShadow = TRUE;
 
 	XMStoreFloat4(&m_xmf4MapBoundaryPlanes[0], XMPlaneFromPointNormal(XMVectorSet(0.f, 0.f, 0.f, 1.f), XMVectorSet(1.f, 0.f, 0.f, 0.f)));
 	XMStoreFloat4(&m_xmf4MapBoundaryPlanes[1], XMPlaneFromPointNormal(XMVectorSet((GetWidth() * 0.5f), 0.f, 0.f, 1.f), XMVectorSet(-1.f, 0.f, 0.f, 0.f)));
@@ -215,6 +216,7 @@ void TerrainObject::CreateChildWaterGridObject(ComPtr<ID3D12Device> pd3dDevice, 
 		}
 	}
 	pWaterGridObject->m_bUseHeightMap = FALSE;
+	pWaterGridObject->m_bDrawShadow = FALSE;
 
 	std::shared_ptr<Texture> pBaseTexture = TEXTURE->LoadTexture(pd3dCommandList, "WaterBase", L"Terrain/Water_Base_Texture_0.dds", RESOURCE_TYPE_TEXTURE2D);
 	std::shared_ptr<Texture> pDetailedTexture = TEXTURE->LoadTexture(pd3dCommandList, "WaterDetailed", L"Terrain/Water_Detail_Texture_0.dds", RESOURCE_TYPE_TEXTURE2D);
@@ -301,6 +303,7 @@ void TerrainObject::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graphic
 			terrainData.xmf2UVTranslation = m_xmf2UVTranslation;
 			terrainData.xmf3TerrainScale = m_xmf3Scale;
 			terrainData.bTerrainUseHeightMap = m_bUseHeightMap;
+			terrainData.bDrawShadow = m_bDrawShadow;
 		}
 		m_TerrainCBuffer.UpdateData(&terrainData);
 
@@ -543,4 +546,15 @@ void TerrainObject::SetWireframeMode(bool bMode)
 	//for (auto& pChild : m_pChildren) {
 	//	static_pointer_cast<TerrainObject>(pChild)->SetWireframeMode(bMode);
 	//}
+}
+
+void TerrainObject::MergeBoundingBoxCorners(std::vector<XMFLOAT3>& xmf3OBBPoints) const
+{
+	xmf3OBBPoints.reserve(xmf3OBBPoints.size() + (m_pTerrainMeshes.size() * 8));
+	for (const auto pTerrainMesh : m_pTerrainMeshes) {
+		XMFLOAT3 xmf3OBBCorners[8] = {};
+		pTerrainMesh->GetOBBOrigin().GetCorners(xmf3OBBCorners);
+
+		xmf3OBBPoints.insert(xmf3OBBPoints.end(), std::begin(xmf3OBBCorners), std::end(xmf3OBBCorners));
+	}
 }

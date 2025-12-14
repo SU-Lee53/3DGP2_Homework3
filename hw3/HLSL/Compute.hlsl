@@ -31,7 +31,7 @@ void CSHorzBlur(int3 vGroupThreadID : SV_GroupThreadID, int3 vDispatchThreadID :
     }
     else if (vGroupThreadID.x >= 256 - 5)
     {
-        int x = min(vDispatchThreadID.x + 5, inputHeight - 1);
+        int x = min(vDispatchThreadID.x + 5, inputWidth - 1);
         gSharedCache[vGroupThreadID.x + 2 * 5] = gtxtTextureInputRO[int2(x, vDispatchThreadID.y)];
     }
     gSharedCache[vGroupThreadID.x + 5] = gtxtTextureInputRO[min(vDispatchThreadID.xy, int2(inputWidth - 1, inputHeight - 1))];
@@ -64,7 +64,7 @@ void CSVertBlur(int3 vGroupThreadID : SV_GroupThreadID, int3 vDispatchThreadID :
     }
     else if (vGroupThreadID.y >= 256 - 5)
     {
-        int y = min(vDispatchThreadID.y + 5, inputWidth - 1);
+        int y = min(vDispatchThreadID.y + 5, inputHeight - 1);
         gSharedCache[vGroupThreadID.y + 2 * 5] = gtxtTextureInputRO[int2(vDispatchThreadID.x, y)];
     }
     gSharedCache[vGroupThreadID.y + 5] = gtxtTextureInputRO[min(vDispatchThreadID.xy, int2(inputWidth - 1, inputHeight - 1))];

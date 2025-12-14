@@ -73,7 +73,7 @@ float3 ComputeNormal(float3 normalW, float3 tangentW, float2 uv)
     return normalize(mul(normal, TBN));
 }
 
-float ComputePCFFactor(float4 vShadowPosition[MAX_LIGHTS])
+float ComputeShadowFactor(float4 vShadowPosition[MAX_LIGHTS])
 {
     float fShadowFactor = 0.f;
     const float fBias = 0.006f;
@@ -95,18 +95,7 @@ float ComputePCFFactor(float4 vShadowPosition[MAX_LIGHTS])
                 deltaY = 1 / SPOT_SHADOW_MAP_SIZE;
             }
 
-            float fFactor = 0.0;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(-deltaX, -deltaY), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(0.f, -deltaY), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(deltaX, -deltaY), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(-deltaX, 0.f), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(0.f, 0.f), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(+deltaX, 0.f), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(-deltaX, +deltaY), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(0.f, +deltaY), vShadowPosition[i].z).r;
-            fFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy + float2(+deltaX, +deltaY), vShadowPosition[i].z).r;
-        
-            fShadowFactor += fFactor / 9;
+            fShadowFactor += gtxtShadowMaps[i].SampleCmpLevelZero(gssShadow, vShadowPosition[i].xy, vShadowPosition[i].z).r;
         }
     }
 
@@ -136,7 +125,7 @@ float4 PSStandard(VS_STANDARD_OUTPUT input) : SV_TARGET
     float4 cColor = cAlbedoColor + cSpecularColor + cEmissionColor;
     
     // Shadow
-    float fShadowFactor = ComputePCFFactor(input.shadowPositions);
+    float fShadowFactor = ComputeShadowFactor(input.shadowPositions);
     
     
     if (gMaterial.m_textureMask & MATERIAL_TYPE_NORMAL_MAP)
@@ -278,12 +267,16 @@ VS_TERRAIN_TESSELLATION_OUTPUT VSTerrainTessellated(VS_TERRAIN_TESSELLATION_INPU
 }
 
 [domain("quad")]
-[partitioning("fractional_odd")]
+//[partitioning("fractional_odd")]
+//[partitioning("fractional_even")]
+//[partitioning("pow2")]
+[partitioning("integer")]
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("HSTerrainTessellatedConstant")]
 [maxtessfactor(64.0f)]
-HS_TERRAIN_TESSELLATION_OUTPUT HSTerrainTessellated(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 4> input, uint i : SV_OutputControlPointID)
+HS_TERRAIN_TESSELLATION_OUTPUT HSTerrainTessellated(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 4> input, 
+                                                    uint i : SV_OutputControlPointID)
 {
     HS_TERRAIN_TESSELLATION_OUTPUT output;
     output.positionW = input[i].positionW;
@@ -299,11 +292,12 @@ HS_TERRAIN_TESSELLATION_OUTPUT HSTerrainTessellated(InputPatch<VS_TERRAIN_TESSEL
 float CalculateTessFactor(float3 positionW)
 {
     float fDistToCamera = distance(positionW, gvCameraPosition);
-    float s = saturate((fDistToCamera - 10.f) / (MAX_LOD_DISTANCE - 10.f));
+    float s = saturate(fDistToCamera / MAX_LOD_DISTANCE);
     return pow(2, lerp(10.f, 2.f, s));
 }
 
-HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 4> input, uint nPatchID : SV_PrimitiveID)
+HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<VS_TERRAIN_TESSELLATION_OUTPUT, 4> input, 
+                                                                     uint nPatchID : SV_PrimitiveID)
 {
     HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT output;
     
@@ -326,7 +320,9 @@ HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT HSTerrainTessellatedConstant(InputPatch<
 }
 
 [domain("quad")]
-DS_TERRAIN_TESSELLATION_OUTPUT DSTerrainTessellated(HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT patchConstant, float2 uv : SV_DomainLocation, OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 4> patch)
+DS_TERRAIN_TESSELLATION_OUTPUT DSTerrainTessellated(HS_TERRAIN_TESSELLATION_CONSTANT_OUTPUT patchConstant, 
+                                                    float2 uv : SV_DomainLocation, 
+                                                    OutputPatch<HS_TERRAIN_TESSELLATION_OUTPUT, 4> patch)
 {
     DS_TERRAIN_TESSELLATION_OUTPUT output = (DS_TERRAIN_TESSELLATION_OUTPUT) 0;
     
@@ -363,7 +359,12 @@ float4 PSTerrainTessellated(DS_TERRAIN_TESSELLATION_OUTPUT input) : SV_TARGET0
     
     float4 cFinalColor = lerp(cBaseColor, cDetailColor, 0.5);
     
-    float fShadowFactor = ComputePCFFactor(input.shadowPositions);
+    float fShadowFactor = 1.f;
+    
+    if (bDrawShadow)
+    {
+        fShadowFactor = ComputeShadowFactor(input.shadowPositions);
+    }
     
     return cFinalColor * fShadowFactor;
 }

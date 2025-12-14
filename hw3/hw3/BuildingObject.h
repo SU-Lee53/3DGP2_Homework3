@@ -38,8 +38,6 @@ public:
 		float fWidth, float fLength, float fHeight, int nWindowsInWidth, int nWindowsInHeights);
 
 protected:
-	std::shared_ptr<GameObject> m_pMainRotorFrame = nullptr;
-	std::shared_ptr<GameObject> m_pTailRotorFrame = nullptr;
 
 };
 

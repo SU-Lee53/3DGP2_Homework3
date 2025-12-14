@@ -37,13 +37,13 @@ void GameScene::BuildDefaultLightsAndMaterials(ComPtr<ID3D12Device> pd3dDevice, 
 	pLight2->m_xmf4Ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
 	pLight2->m_xmf4Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
 	pLight2->m_xmf4Specular = XMFLOAT4(0.4f, 0.4f, 0.4f, 0.0f);
-	pLight2->m_xmf3Direction = XMFLOAT3(1.0f, -1.0f, 0);
+	pLight2->m_xmf3Direction = XMFLOAT3(1.0f, -1.0f, 1.f);
 
 	// Scene의 중심 구함
 	XMFLOAT3 xmf3SceneCenter = GetBoundingBox().Center;
 
 	// Drectional Light 의 위치 계산
-	float fLightDistance = 3000.f;
+	float fLightDistance = 5000.f;
 	pLight2->m_xmf3Position = Vector3::Subtract(xmf3SceneCenter, Vector3::ScalarProduct(pLight2->m_xmf3Direction, fLightDistance));
 	XMStoreFloat4x4(&pLight2->m_xmf4x4ViewFromLight, XMMatrixLookToLH(XMLoadFloat3(&pLight2->m_xmf3Position), XMVector3Normalize(XMLoadFloat3(&pLight2->m_xmf3Direction)), XMVectorSet(0.f, 1.f, 0.f, 0.f)));
 
@@ -60,13 +60,18 @@ void GameScene::BuildDefaultLightsAndMaterials(ComPtr<ID3D12Device> pd3dDevice, 
 		xmvAABBMin = XMVectorMin(pxmvLightSpaceSceneAABBPoints[i], xmvAABBMin);
 		xmvAABBMax = XMVectorMax(pxmvLightSpaceSceneAABBPoints[i], xmvAABBMax);
 	}
+	XMFLOAT3 xmf3AABBMin;
+	XMFLOAT3 xmf3AABBMax;
+	XMStoreFloat3(&xmf3AABBMin, xmvAABBMin);
+	XMStoreFloat3(&xmf3AABBMax, xmvAABBMax);
+
 	XMStoreFloat4x4(&pLight2->m_xmf4x4ProjectionFromLight, XMMatrixOrthographicOffCenterLH(
-			XMVectorGetX(xmvAABBMin),
-			XMVectorGetX(xmvAABBMax),
-			XMVectorGetY(xmvAABBMin),
-			XMVectorGetY(xmvAABBMax),
-			XMVectorGetZ(xmvAABBMin),
-			XMVectorGetZ(xmvAABBMax)
+			xmf3AABBMin.x,
+			xmf3AABBMax.x,
+			xmf3AABBMin.y,
+			xmf3AABBMax.y,
+			xmf3AABBMin.z,
+			xmf3AABBMax.z
 		)
 	);
 
@@ -211,6 +216,10 @@ void GameScene::BuildObjects(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 		}
 	}
 
+	for (auto pObj : m_pGameObjects) {
+		pObj->AdjustHeightFromTerrain(m_pTerrain);
+	}
+
 	m_pHPTextSprite = std::make_shared<TextSprite>("", 0.0f, 0.0f, 0.3f, 0.05f, XMFLOAT4(1, 0, 0, 1), 1, true);
 	m_pSprites.push_back(m_pHPTextSprite);
 
@@ -227,12 +236,6 @@ void GameScene::ReleaseUploadBuffers()
 
 bool GameScene::ProcessInput(UCHAR* pKeysBuffer)
 {
-	for (auto pObj : m_pGameObjects) {
-		pObj->CacheLastFrameTransform();
-	}
-
-	m_pPlayer->CacheLastFrameTransform();
-
 	DWORD dwDirection = 0;
 	if (pKeysBuffer['W'] & 0xF0)	dwDirection |= MOVE_DIR_FORWARD;
 	if (pKeysBuffer['S'] & 0xF0)	dwDirection |= MOVE_DIR_BACKWARD;

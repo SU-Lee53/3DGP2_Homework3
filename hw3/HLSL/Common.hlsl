@@ -63,6 +63,7 @@ cbuffer cbTerrainData : register(b2)
     float3 gvTerrainScale;
     bool gbTerrainUseHeightMap;
     float2 gvTerrainUVOffset;
+    bool bDrawShadow;
 };
 
 struct BILLBOARD

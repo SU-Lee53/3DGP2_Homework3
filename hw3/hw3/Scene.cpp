@@ -56,17 +56,19 @@ void Scene::Render(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsCommand
 	if (m_pPlayer) {
 		m_pPlayer->UpdateTransform();
 		m_pPlayer->OnPrepareRender();
-		if (m_pPlayer->IsInFrustum(GetCamera())) {
-			m_pPlayer->AddToRenderMap(false);
-		}
+		//if (m_pPlayer->IsInFrustum(GetCamera())) {
+		//	m_pPlayer->AddToRenderMap(false);
+		//}
+		m_pPlayer->AddToRenderMap(false);
 	}
 
 	for (auto& pObj : m_pGameObjects) {
 		pObj->UpdateTransform();
 		pObj->OnPrepareRender();
-		if (pObj->IsInFrustum(GetCamera())) {
-			pObj->AddToRenderMap(false);
-		}
+		//if (pObj->IsInFrustum(GetCamera())) {
+		//	pObj->AddToRenderMap(false);
+		//}
+		pObj->AddToRenderMap(false);
 	}
 
 	for (auto& pSprite : m_pSprites) {
@@ -87,6 +89,22 @@ void Scene::RenderDebug(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList)
 	for (auto& pObj : m_pGameObjects) {
 		pObj->RenderOBB(pd3dCommandList);
 	}
+
+	pd3dCommandList->SetGraphicsRootSignature(RenderManager::g_pd3dRootSignature.Get());
+
+	XMFLOAT4 xmf4DebugColor(0.f, 0.f, 1.f, 1.f);
+	XMFLOAT4 xmf4Orientation(0.f, 0.f, 0.f, 1.f);
+	pd3dCommandList->SetGraphicsRoot32BitConstants(6, 3, &m_xmAABBScene.Center, 0);
+	pd3dCommandList->SetGraphicsRoot32BitConstants(6, 3, &m_xmAABBScene.Extents, 4);
+	pd3dCommandList->SetGraphicsRoot32BitConstants(6, 4, &xmf4Orientation, 8);
+	pd3dCommandList->SetGraphicsRoot32BitConstants(6, 4, &xmf4DebugColor, 12);
+
+	// Draw
+	pd3dCommandList->SetGraphicsRootSignature(RenderManager::g_pd3dRootSignature.Get());
+	pd3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
+	SHADER->Get<OBBDebugShader>()->OnPrepareRender(pd3dCommandList);
+
+	pd3dCommandList->DrawInstanced(1, 1, 0, 0);
 
 }
 
@@ -264,6 +282,11 @@ void Scene::SetTerrainWireframeMode(bool bMode)
 	}
 }
 
+bool Scene::GetTerrainWireframeMode() const
+{
+	return m_pTerrain->GetWireframeMode();
+}
+
 void Scene::GenerateSceneBoundingBox()
 {
 	// 씬에 아무것도 없으면 즉시 리턴
@@ -274,14 +297,20 @@ void Scene::GenerateSceneBoundingBox()
 	XMVECTOR xmvSceneMin = g_XMFltMax;
 	XMVECTOR xmvSceneMax = g_XMFltMin;
 
-	std::vector<XMFLOAT3> OBBPoints;
-	OBBPoints.reserve(m_pGameObjects.size() * BoundingOrientedBox::CORNER_COUNT);
+	std::vector<XMFLOAT3> xmf3OBBPoints;
+	xmf3OBBPoints.reserve(m_pGameObjects.size() * BoundingOrientedBox::CORNER_COUNT);
 	for (const auto& pObj : m_pGameObjects) {
 		XMFLOAT3 xmf3OBBCorners[8] = {};
 		pObj->GetOBB().GetCorners(xmf3OBBCorners);
 
-		OBBPoints.insert(OBBPoints.end(), _countof(xmf3OBBCorners), xmf3OBBCorners[0]);
+		xmf3OBBPoints.insert(xmf3OBBPoints.end(), std::begin(xmf3OBBCorners), std::end(xmf3OBBCorners));
 	}
 
-	BoundingBox::CreateFromPoints(m_xmAABBScene, OBBPoints.size(), OBBPoints.data(), sizeof(XMFLOAT3));
+	if (m_pTerrain) {
+		m_pTerrain->MergeBoundingBoxCorners(xmf3OBBPoints);
+	}
+
+	BoundingBox::CreateFromPoints(m_xmAABBScene, xmf3OBBPoints.size(), xmf3OBBPoints.data(), sizeof(XMFLOAT3));
+
+	
 }

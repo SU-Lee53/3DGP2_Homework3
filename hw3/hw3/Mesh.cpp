@@ -332,6 +332,9 @@ std::shared_ptr<StandardMesh> StandardMesh::GenerateMirrorMesh(ComPtr<ID3D12Devi
 		pMirrorMesh->m_d3dPositionBufferView.BufferLocation = pMirrorMesh->m_pd3dPositionBuffer->GetGPUVirtualAddress();
 		pMirrorMesh->m_d3dPositionBufferView.StrideInBytes = sizeof(XMFLOAT3);
 		pMirrorMesh->m_d3dPositionBufferView.SizeInBytes = sizeof(XMFLOAT3) * pMirrorMesh->m_nVertices;
+
+		auto& xmf3Positions = pMirrorMesh->m_xmf3Positions;
+		BoundingOrientedBox::CreateFromPoints(pMirrorMesh->m_xmOBB, xmf3Positions.size(), xmf3Positions.data(), sizeof(XMFLOAT3));
 	}
 
 
@@ -528,8 +531,8 @@ void TerrainMesh::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12GraphicsC
 	float fHeight = 0.0f, fMinHeight = +FLT_MAX, fMaxHeight = -FLT_MAX;
 
 #ifdef TERRAIN_TESSELLATION
-	int nIncrementX = (m_nWidth / (nControlPointPerEdge - 1)) - 1;
-	int nIncrementZ = (m_nLength / (nControlPointPerEdge - 1)) - 1;
+	int nIncrementX = m_nWidth - 1;
+	int nIncrementZ = m_nLength - 1;
 
 	float fPosX = xStart;
 	float fPosZ = (zStart + m_nLength - 1);

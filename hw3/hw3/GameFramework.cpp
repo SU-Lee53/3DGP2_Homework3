@@ -216,7 +216,7 @@ void GameFramework::Render()
 	MoveToNextFrame();
 
 	TSTRING tstrFrameRate;
-	m_GameTimer.GetFrameRate(L"3DGP-Homework2", tstrFrameRate);
+	m_GameTimer.GetFrameRate(L"3DGP-Homework3", tstrFrameRate);
 	//tstrFrameRate = std::format(L"{}", tstrFrameRate);
 	::SetWindowText(g_hWnd, tstrFrameRate.data());
 }
@@ -603,12 +603,8 @@ void GameFramework::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPAR
 			RenderManager::g_bRenderOBBForDebug = !RenderManager::g_bRenderOBBForDebug;
 			break;
 
-		case '1':
-			CUR_SCENE->SetTerrainWireframeMode(true);
-			break;
-
-		case '2':
-			CUR_SCENE->SetTerrainWireframeMode(false);
+		case VK_F4:
+			CUR_SCENE->SetTerrainWireframeMode(!CUR_SCENE->GetTerrainWireframeMode());
 			break;
 
 		default:

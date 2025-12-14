@@ -21,7 +21,6 @@ VS_FULLSCREEN_OUTPUT VSFullScreen(uint nVertexID : SV_VertexID)
         float2(-1, -1)
     };
     
-    
     float2 uvs[6] =
     {
         float2(0.f, 0.f),
@@ -42,5 +41,5 @@ VS_FULLSCREEN_OUTPUT VSFullScreen(uint nVertexID : SV_VertexID)
 
 float4 PSFullScreen(VS_FULLSCREEN_OUTPUT input) : SV_Target
 {
-    return gtxtTextureInputRO.Sample(gssPoint, input.uv);
+    return gtxtTextureInputRO.SampleLevel(gssPoint, input.uv, 0);
 }

@@ -65,6 +65,7 @@ public:
 private:
 	// °úÁ¦ 3
 	void GenerateShadowMaps(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle);
+	void FilterObjectsInFrustum();
 
 	void RenderObjects(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle);
 	void RenderTerrain(ComPtr<ID3D12GraphicsCommandList> pd3dCommandList, DescriptorHandle& refDescHandle);
@@ -99,6 +100,7 @@ private:
 	DescriptorHandle				m_DescriptorHandle;
 
 	StructuredBuffer				m_InstanceDataSBuffer;
+	StructuredBuffer				m_InstanceDataInFrustumSBuffer;
 	StructuredBuffer				m_InstanceDataOnMirrorSBuffer;
 	StructuredBuffer				m_InstanceDataTransparentSBuffer;
 	ConstantBuffer					m_LightOnMirrorCBuffer;

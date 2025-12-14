@@ -751,7 +751,7 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 	}
 
 #else
-	m_pd3dPipelineStates.resize(2);
+	m_pd3dPipelineStates.resize(3);
 	{
 		d3dPipelineDesc.pRootSignature = pd3dRootSignature ? pd3dRootSignature.Get() : RenderManager::g_pd3dRootSignature.Get();
 		d3dPipelineDesc.VS = SHADER->GetShaderByteCode("TerrainVS");
@@ -781,11 +781,20 @@ void TerrainShader::Create(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12RootSig
 		d3dPipelineDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 	}
 
-	HRESULT hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[nPipelineIndex].GetAddressOf()));
+	HRESULT hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[nPipelineIndex++].GetAddressOf()));
 	if (FAILED(hr)) {
 		__debugbreak();
 	}
-	nPipelineIndex++
+
+	// pipeline[1] : ÁöÇü wireframe
+	{
+		d3dPipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	}
+
+	hr = pd3dDevice->CreateGraphicsPipelineState(&d3dPipelineDesc, IID_PPV_ARGS(m_pd3dPipelineStates[nPipelineIndex++].GetAddressOf()));
+	if (FAILED(hr)) {
+		__debugbreak();
+	}
 
 #endif
 	{
@@ -1060,9 +1069,9 @@ D3D12_RASTERIZER_DESC ShadowMapShader::CreateRasterizerState()
 		desc.FillMode = D3D12_FILL_MODE_SOLID;
 		desc.CullMode = D3D12_CULL_MODE_NONE;
 		desc.FrontCounterClockwise = FALSE;
-		desc.DepthBias = 100000;
-		desc.DepthBiasClamp = 0.f;
-		desc.SlopeScaledDepthBias = 1.0f;
+		desc.DepthBias = 8000;
+		desc.DepthBiasClamp = 0.01f;
+		desc.SlopeScaledDepthBias = 2.0f;
 		desc.DepthClipEnable = TRUE;
 		desc.MultisampleEnable = FALSE;
 		desc.AntialiasedLineEnable = FALSE;

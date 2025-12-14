@@ -14,6 +14,7 @@ RenderManager::RenderManager(ComPtr<ID3D12Device> pd3dDevice, ComPtr<ID3D12Graph
 	m_pd3dDevice = pd3dDevice;
 
 	m_InstanceDataSBuffer.Create(pd3dDevice, pd3dCommandList, ASSUMED_REQUIRED_STRUCTURED_BUFFER_SIZE, sizeof(INSTANCE_DATA), true);
+	m_InstanceDataInFrustumSBuffer.Create(pd3dDevice, pd3dCommandList, ASSUMED_REQUIRED_STRUCTURED_BUFFER_SIZE, sizeof(INSTANCE_DATA), true);
 	m_InstanceDataOnMirrorSBuffer.Create(pd3dDevice, pd3dCommandList, ASSUMED_REQUIRED_STRUCTURED_BUFFER_SIZE, sizeof(INSTANCE_DATA), true);
 	m_InstanceDataTransparentSBuffer.Create(pd3dDevice, pd3dCommandList, ASSUMED_REQUIRED_STRUCTURED_BUFFER_SIZE, sizeof(INSTANCE_DATA), true);
 	
@@ -179,6 +180,28 @@ void RenderManager::GenerateShadowMaps(ComPtr<ID3D12GraphicsCommandList> pd3dCom
 	refDescHandle.gpuHandle.ptr += 15 * GameFramework::g_uiDescriptorHandleIncrementSize;
 }
 
+void RenderManager::FilterObjectsInFrustum()
+{
+	// TODO : 구현
+	auto pCamera = CUR_SCENE->GetCamera();
+	auto pObjects = CUR_SCENE->GetGameObjects();
+
+	BoundingFrustum xmFrustumInWorld = pCamera->GetFrustum();
+	for (auto& [instanceKey, instanceDatas] : m_InstanceDatas) {
+		auto pMesh = instanceKey.pMesh;
+		BoundingOrientedBox xmOBB = pMesh->GetOBBOrigin();
+		std::erase_if(instanceDatas, [&xmFrustumInWorld, &xmOBB](const INSTANCE_DATA& in) {
+			BoundingFrustum xmFrustumInModelSpace;
+			xmFrustumInWorld.Transform(xmFrustumInModelSpace, XMMatrixInverse(nullptr, XMMatrixTranspose(XMLoadFloat4x4(&in.xmf4x4World))));
+			return !xmFrustumInModelSpace.Intersects(xmOBB);
+		});
+	}
+	
+	std::erase_if(m_InstanceDatas, [](const std::pair<INSTANCE_KEY, std::vector<INSTANCE_DATA>>& pair) {
+		return pair.second.empty();
+	});
+}
+
 void RenderManager::SetCurrentBackBufferHandle(D3D12_CPU_DESCRIPTOR_HANDLE d3dRTVHandle, D3D12_CPU_DESCRIPTOR_HANDLE d3dDSVHandle)
 {
 	m_d3dCurrentBackBufferRTVHandle = d3dRTVHandle;
@@ -209,6 +232,25 @@ void RenderManager::RenderObjects(ComPtr<ID3D12GraphicsCommandList> pd3dCommandL
 
 	// Render Target 원상복구
 	pd3dCommandList->OMSetRenderTargets(1, &m_d3dCurrentBackBufferRTVHandle, TRUE, &m_d3dFrameworkDSVHandle);
+
+	FilterObjectsInFrustum();
+
+	uiSBufferOffset = 0;
+	for (auto&& [instanceKey, instanceData] : m_InstanceDatas) {
+		m_InstanceDataInFrustumSBuffer.UpdateData(instanceData, uiSBufferOffset);
+		uiSBufferOffset += instanceData.size();
+	}
+#ifdef WITH_UPLOAD_BUFFER
+	m_InstanceDataInFrustumSBuffer.UpdateResources(m_pd3dDevice, pd3dCommandList);
+
+#endif
+
+	m_pd3dDevice->CopyDescriptorsSimple(1, refDescHandle.cpuHandle,
+		m_InstanceDataInFrustumSBuffer.GetCPUDescriptorHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	refDescHandle.cpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
+
+	pd3dCommandList->SetGraphicsRootDescriptorTable(3, refDescHandle.gpuHandle);
+	refDescHandle.gpuHandle.ptr += GameFramework::g_uiDescriptorHandleIncrementSize;
 
 	// Scene 의 카메라 정보 기입
 	auto pCamera = CUR_SCENE->GetPlayer()->GetCamera();

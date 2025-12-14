@@ -46,6 +46,7 @@ struct CB_TERRAIN_DATA {
 	XMFLOAT3 xmf3TerrainScale;
 	BOOL bTerrainUseHeightMap;
 	XMFLOAT2 xmf2UVTranslation = XMFLOAT2(0, 0);
+	BOOL bDrawShadow;
 };
 
 struct BillboardParameters {
@@ -100,6 +101,9 @@ public:
 
 	bool GetWireframeMode() { return m_bDrawWireframe; }
 	void SetWireframeMode(bool bMode);
+	
+	void MergeBoundingBoxCorners(std::vector<XMFLOAT3>& xmf3OBBPoints) const;
+
 
 private:
 	std::shared_ptr<Texture> m_pHeightMapTexture = nullptr;
@@ -115,6 +119,7 @@ private:
 	int m_nLength = 0;
 	XMFLOAT3 m_xmf3Scale;
 	BOOL m_bUseHeightMap = FALSE;
+	BOOL m_bDrawShadow = FALSE;
 
 	float m_fWaterHeight = 250.f;
 	float m_fBlendFactor = 1.f;

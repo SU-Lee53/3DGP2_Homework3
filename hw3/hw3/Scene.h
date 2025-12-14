@@ -61,6 +61,7 @@ public:
 	std::shared_ptr<Texture> GetSkyboxTexture() { return m_pSkyboxTexture; }
 
 	void SetTerrainWireframeMode(bool bMode);
+	bool GetTerrainWireframeMode() const;
 	
 	void GenerateSceneBoundingBox();
 	const BoundingBox& GetBoundingBox() const { return m_xmAABBScene; }
